@@ -1,0 +1,35 @@
+{
+  "name": "PILAR del estudiante",
+  "short_name": "PILAR",
+  "description": "PILAR del estudiante - Herramienta de estudio, transcripción y IA",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1020",
+  "theme_color": "#8b5cf6",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Transcriptor",
+      "short_name": "Audio a texto",
+      "url": "/?tab=transcriptor",
+      "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Asistente IA",
+      "short_name": "Asistente",
+      "url": "/?tab=asistente",
+      "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}

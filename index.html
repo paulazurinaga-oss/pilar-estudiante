@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#8b5cf6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>PILAR del estudiante</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div id="welcomeModal" class="modal show" aria-modal="true" role="dialog">
+      <div class="modal-card">
+        <div class="brand-badge" aria-label="PILAR del estudiante logo">
+          <span class="brand-mark">
+            <span class="mark-a">P</span>
+          </span>
+          <span>PILAR del estudiante</span>
+        </div>
+        <h1>¡Hola, estudiante!</h1>
+        <p>Tu espacio de estudio inteligente está listo para comenzar.</p>
+        <form id="registerForm" class="register-form">
+          <label>
+            Nombre
+            <input type="text" id="studentName" placeholder="Ej: Valentina" required />
+          </label>
+          <label>
+            Correo
+            <input type="email" id="studentEmail" placeholder="estudiante@correo.com" required />
+          </label>
+          <div class="trial-box">
+            <strong>Versión de prueba</strong>
+            <span>Activa por 7 días. Luego podrás pagar la versión completa.</span>
+          </div>
+          <button type="submit" class="primary-btn">Entrar a la prueba</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="app-shell hidden" id="appShell">
+      <aside class="sidebar">
+        <div class="brand-block" aria-label="PILAR del estudiante branding">
+          <div class="brand-icon" aria-hidden="true">
+            <span class="brand-mark brand-mark-small">
+              <span class="mark-a">P</span>
+            </span>
+          </div>
+          <div>
+            <h2>PILAR del estudiante</h2>
+            <p>del estudiante</p>
+          </div>
+        </div>
+
+        <nav class="nav-menu" aria-label="Pestañas principales">
+          <button class="nav-btn active" data-tab="inicio">Inicio</button>
+          <button class="nav-btn" data-tab="biblioteca">Biblioteca</button>
+          <button class="nav-btn" data-tab="centro">Centro de estudio</button>
+          <button class="nav-btn" data-tab="transcriptor">Transcriptor</button>
+          <button class="nav-btn" data-tab="audios">Audios</button>
+          <button class="nav-btn" data-tab="documentos">Documentos</button>
+          <button class="nav-btn" data-tab="asistente">Asistente IA</button>
+          <button class="nav-btn" data-tab="imagenes">Imágenes IA</button>
+          <button class="nav-btn" data-tab="configuracion">Configuración</button>
+        </nav>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div class="topbar-search">
+            <span>🔎</span>
+            <input type="text" placeholder="Buscar archivos, notas, IA, documentos..." />
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-btn" id="saveAction">Guardar</button>
+            <button class="ghost-btn" id="copyAction">Copiar</button>
+            <button class="ghost-btn" id="pasteAction">Pegar</button>
+            <button class="ghost-btn danger" id="deleteAction">Eliminar</button>
+          </div>
+        </header>
+
+        <section class="tab-panel active" data-panel="inicio">
+          <div class="welcome-banner">
+            <div>
+              <span class="eyebrow">Bienvenido</span>
+              <h3 id="welcomeMessage">Hola, estudiante</h3>
+            </div>
+            <button class="primary-btn" id="newProjectBtn">Nuevo proyecto</button>
+          </div>
+
+          <div class="quick-grid">
+            <button class="quick-card" data-tab="biblioteca">
+              <span>📚</span>
+              <strong>Biblioteca</strong>
+              <small>Archivos compartidos</small>
+            </button>
+            <button class="quick-card" data-tab="centro">
+              <span>🗂️</span>
+              <strong>Centro de estudio</strong>
+              <small>Carpetas y organización</small>
+            </button>
+            <button class="quick-card" data-tab="transcriptor">
+              <span>🎙️</span>
+              <strong>Transcriptor</strong>
+              <small>Audio a texto</small>
+            </button>
+            <button class="quick-card" data-tab="audios">
+              <span>🎧</span>
+              <strong>Audios</strong>
+              <small>Reproducir y ordenar</small>
+            </button>
+            <button class="quick-card" data-tab="documentos">
+              <span>📄</span>
+              <strong>Documentos</strong>
+              <small>Notas y fichas</small>
+            </button>
+            <button class="quick-card" data-tab="asistente">
+              <span>🤖</span>
+              <strong>Asistente IA</strong>
+              <small>Consultar y resumir</small>
+            </button>
+            <button class="quick-card" data-tab="imagenes">
+              <span>🖼️</span>
+              <strong>Imágenes IA</strong>
+              <small>Crear y mejorar</small>
+            </button>
+            <button class="quick-card" data-tab="configuracion">
+              <span>⚙️</span>
+              <strong>Configuración</strong>
+              <small>Estilo y personalización</small>
+            </button>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-box">
+              <span>Archivos</span>
+              <strong id="statFiles">0</strong>
+            </div>
+            <div class="stat-box">
+              <span>Carpetas</span>
+              <strong id="statFolders">0</strong>
+            </div>
+            <div class="stat-box">
+              <span>Transcripciones</span>
+              <strong id="statTranscripts">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="biblioteca">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Biblioteca</span>
+              <h3>Todos los archivos</h3>
+            </div>
+            <label class="primary-btn file-select-label">
+              Subir archivo
+              <input id="uploadLibraryInput" type="file" multiple />
+            </label>
+          </div>
+          <div class="drop-zone" id="libraryDropZone">
+            <p>Arrastra y suelta cualquier archivo aquí</p>
+            <small>Audio, imágenes, documentos, PDFs, videos y más</small>
+          </div>
+          <div id="libraryGrid" class="card-grid"></div>
+        </section>
+
+        <section class="tab-panel" data-panel="centro">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Centro de estudio</span>
+              <h3>Carpetas y materiales</h3>
+            </div>
+            <div class="folder-tools">
+              <input id="folderNameInput" type="text" placeholder="Nombre de la carpeta" />
+              <button class="primary-btn" id="createFolderBtn">Crear carpeta</button>
+            </div>
+          </div>
+          <div id="folderGrid" class="folder-grid"></div>
+        </section>
+
+        <section class="tab-panel" data-panel="transcriptor">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Transcriptor</span>
+              <h3>Audio a texto</h3>
+            </div>
+            <label class="primary-btn file-select-label">
+              Cargar audio
+              <input id="audioUploadInput" type="file" accept="audio/*" />
+            </label>
+          </div>
+
+          <div class="transcript-box">
+            <div class="transcript-meta">
+              <div>
+                <strong id="audioName">Sin archivo seleccionado</strong>
+                <small>Soporta audio de hasta 4 horas</small>
+              </div>
+              <div class="mini-actions">
+                <button class="ghost-btn" id="transcribeBtn">Transcribir</button>
+                <button class="ghost-btn" id="copyTranscriptBtn">Copiar</button>
+                <button class="ghost-btn" id="saveTranscriptBtn">Guardar</button>
+                <button class="ghost-btn" id="deleteTranscriptBtn">Eliminar</button>
+              </div>
+            </div>
+
+            <textarea id="transcriptOutput" placeholder="La transcripción aparecerá aquí...">La transcripción aparecerá aquí con segmentos, palabras clave y detalle fino de audio prolongado, listo para guardar, compartir, enviar a IA o convertir en fichas interactivas.</textarea>
+
+            <div class="generation-row">
+              <button class="ghost-btn" id="sendToAiBtn">Enviar a IA</button>
+              <button class="ghost-btn" id="generateImageBtn">Generar imagen</button>
+              <button class="ghost-btn" id="generateMapBtn">Mapa conceptual</button>
+              <button class="ghost-btn" id="speakTextBtn">Texto a voz</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="audios">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Audios</span>
+              <h3>Reproductor y archivo</h3>
+            </div>
+            <label class="primary-btn file-select-label">
+              Subir audio
+              <input id="audioLibraryInput" type="file" accept="audio/*" multiple />
+            </label>
+          </div>
+
+          <div class="audio-player">
+            <div class="player-art">🎧</div>
+            <div class="player-controls">
+              <strong id="audioPlayerTitle">Audio sin seleccionar</strong>
+              <audio id="audioPlayer" controls></audio>
+              <div class="player-actions">
+                <button class="ghost-btn" data-action="retrasar">-10s</button>
+                <button class="ghost-btn" data-action="pausar">Pausar</button>
+                <button class="ghost-btn" data-action="adelantar">+10s</button>
+                <button class="ghost-btn" data-action="guardar">Guardar</button>
+                <button class="ghost-btn" data-action="compartir">Compartir</button>
+              </div>
+            </div>
+          </div>
+          <div id="audioGrid" class="card-grid"></div>
+        </section>
+
+        <section class="tab-panel" data-panel="documentos">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Documentos</span>
+              <h3>Archivos y fichas</h3>
+            </div>
+            <label class="primary-btn file-select-label">
+              Cargar documento
+              <input id="documentUploadInput" type="file" multiple />
+            </label>
+          </div>
+          <div id="documentGrid" class="card-grid"></div>
+        </section>
+
+        <section class="tab-panel" data-panel="asistente">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Asistente IA</span>
+              <h3>Consulta inteligente</h3>
+            </div>
+          </div>
+          <div class="ai-panel">
+            <textarea id="aiPrompt" placeholder="Escribe tu pedido: resúmeme, explica esta idea, crea un esquema o revisa un documento..."></textarea>
+            <label class="file-select-label ghost-btn">
+              Adjuntar archivo
+              <input id="aiFileInput" type="file" accept=".txt,.md,.csv,.json,.pdf,image/*,audio/*" />
+            </label>
+            <small id="aiFileName">Sin archivo adjunto</small>
+            <div class="ai-actions">
+              <button class="primary-btn" id="aiSendBtn">Enviar</button>
+              <button class="ghost-btn" id="aiCopyBtn">Copiar</button>
+              <button class="ghost-btn" id="aiSaveBtn">Guardar</button>
+              <button class="ghost-btn" id="aiDeleteBtn">Eliminar</button>
+            </div>
+            <div class="ai-output" id="aiOutput">
+              El asistente responderá con un resumen, explicación o esquema personalizado para tu contenido.
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="imagenes">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Imágenes IA</span>
+              <h3>Crear y mejorar imágenes</h3>
+            </div>
+            <label class="primary-btn file-select-label">
+              Cargar imagen
+              <input id="imageUploadInput" type="file" accept="image/*" />
+            </label>
+          </div>
+
+          <div class="image-builder">
+            <textarea id="imagePrompt" placeholder="Describe la imagen que quieres crear o mejorar..."></textarea>
+            <div class="ai-actions">
+              <button class="primary-btn" id="generateImageBtn2">Generar imagen</button>
+              <button class="ghost-btn" id="imageSaveBtn">Guardar</button>
+              <button class="ghost-btn" id="imageShareBtn">Compartir</button>
+            </div>
+            <div class="generated-image" id="generatedImage"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="configuracion">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow">Configuración</span>
+              <h3>Personaliza tu entorno</h3>
+            </div>
+          </div>
+
+          <div class="config-grid">
+            <div class="config-card">
+              <label>Fondo</label>
+              <select id="themeSelect">
+                <option value="default">Oscuro elegante</option>
+                <option value="ocean">Océano</option>
+                <option value="sunset">Atardecer</option>
+                <option value="forest">Bosque</option>
+              </select>
+            </div>
+            <div class="config-card">
+              <label>Color principal</label>
+              <input id="accentPicker" type="color" value="#8b5cf6" />
+            </div>
+            <div class="config-card full-width">
+              <label>Fondo personalizado</label>
+              <input id="customBackgroundInput" type="url" placeholder="Pega la URL de una imagen" />
+              <button class="primary-btn" id="applyBackgroundBtn">Aplicar fondo</button>
+            </div>
+            <div class="config-card full-width">
+              <label>Tipografía</label>
+              <select id="fontSelect">
+                <option value="Inter">Inter</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Tahoma">Tahoma</option>
+                <option value="'Playfair Display'">Playfair Display</option>
+              </select>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="action-side">
+        <div class="action-panel">
+          <h4>Acciones rápidas</h4>
+          <div class="action-list">
+            <button data-action="guardar">Guardar</button>
+            <button data-action="copiar">Copiar</button>
+            <button data-action="pegar">Pegar</button>
+            <button data-action="eliminar">Eliminar</button>
+            <button data-action="enviar">Enviar</button>
+            <button data-action="compartir">Compartir</button>
+          </div>
+        </div>
+        <div class="action-panel status-panel">
+          <h4>Estado</h4>
+          <p id="statusText">Listo para trabajar.</p>
+        </div>
+      </aside>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+      if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
+        window.addEventListener('load', () => {
+          if (document.visibilityState === 'prerender') return;
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }, { once: true });
+      }
+    </script>
+  </body>
+</html>

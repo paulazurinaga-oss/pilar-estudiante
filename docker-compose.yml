@@ -1,0 +1,18 @@
+services:
+  pilar:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      AURAPILAR_DATA_PATH: /data/storage
+    volumes:
+      - pilar-data:/data/storage
+
+volumes:
+  pilar-data:

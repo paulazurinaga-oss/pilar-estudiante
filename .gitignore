@@ -1,0 +1,32 @@
+# Environment variables with sensitive keys (NUNCA SUBIR)
+.env
+.env.local
+.env.*.local
+
+# Node dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Build outputs y empaquetados
+dist/
+dist-pilar-*/
+
+# Almacenamiento de usuario
+storage/uploads/*
+storage/pdfs/*
+!storage/uploads/.gitkeep
+!storage/pdfs/.gitkeep
+
+# IDE y OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Electron builds
+out/
+*.exe
