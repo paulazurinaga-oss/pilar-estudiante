@@ -73,7 +73,7 @@ async function startServer() {
       GEMINI_API_KEY: 'integration-central-gemini-key-not-secret',
       MERCADOPAGO_ACCESS_TOKEN: 'TEST-MP-TOKEN-NOT-REAL',
       MERCADOPAGO_WEBHOOK_SECRET: 'MP-WEBHOOK-SECRET-NOT-REAL',
-      PILAR_WEB_PRICE_ARS: '12500',
+      PILAR_WEB_PRICE_ARS: '15000',
       PILAR_PUBLIC_URL: 'https://pilar.example.test',
       PILAR_LICENSE_CODES: 'PILAR-TEST-LICENSE-ONLY-1234567890',
     },
@@ -133,7 +133,7 @@ test('exposes fixed-price web checkout but refuses forged payment notifications'
   assert.deepEqual(await config.json(), {
     enabled: true,
     desktop: false,
-    amount: 12500,
+    amount: 15000,
     currency: 'ARS',
     description: 'Licencia web de pago único para una cuenta.',
   });

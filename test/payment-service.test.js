@@ -11,7 +11,7 @@ process.env.NODE_ENV = 'test';
 process.env.PILAR_REGISTRATION_CODES = '';
 process.env.MERCADOPAGO_ACCESS_TOKEN = 'TEST_ACCESS_TOKEN_NOT_REAL';
 process.env.MERCADOPAGO_WEBHOOK_SECRET = 'TEST_WEBHOOK_SECRET_NOT_REAL';
-process.env.PILAR_WEB_PRICE_ARS = '12500';
+process.env.PILAR_WEB_PRICE_ARS = '15000';
 process.env.PILAR_PUBLIC_URL = 'https://pilar.example.test';
 
 const auth = require('../src/services/authService');
@@ -46,7 +46,7 @@ after(() => {
 test('creates a fixed-amount ARS preference tied to the authenticated account', () => {
   assert.equal(preferenceRequest.url, 'https://api.mercadopago.com/checkout/preferences');
   assert.equal(preferenceRequest.options.headers.Authorization, 'Bearer TEST_ACCESS_TOKEN_NOT_REAL');
-  assert.equal(preferenceRequest.body.items[0].unit_price, 12500);
+  assert.equal(preferenceRequest.body.items[0].unit_price, 15000);
   assert.equal(preferenceRequest.body.items[0].currency_id, 'ARS');
   assert.equal(preferenceRequest.body.external_reference, checkout.orderId);
   assert.equal(preferenceRequest.body.notification_url, 'https://pilar.example.test/api/payments/webhook');
@@ -87,7 +87,7 @@ test('grants a license only after API-confirmed approved amount/currency and is 
     return new Response(JSON.stringify({
       id: 99887766,
       status: 'approved',
-      transaction_amount: 12500,
+      transaction_amount: 15000,
       currency_id: 'ARS',
       external_reference: order.id,
     }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -146,7 +146,7 @@ test('revokes a web license after Mercado Pago confirms a refund', async () => {
     return new Response(JSON.stringify({
       id: 99887768,
       status: 'approved',
-      transaction_amount: 12500,
+      transaction_amount: 15000,
       currency_id: 'ARS',
       external_reference: refundCheckout.orderId,
     }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -158,7 +158,7 @@ test('revokes a web license after Mercado Pago confirms a refund', async () => {
   global.fetch = async () => new Response(JSON.stringify({
     id: 99887768,
     status: 'refunded',
-    transaction_amount: 12500,
+    transaction_amount: 15000,
     currency_id: 'ARS',
     external_reference: refundCheckout.orderId,
   }), { status: 200, headers: { 'content-type': 'application/json' } });

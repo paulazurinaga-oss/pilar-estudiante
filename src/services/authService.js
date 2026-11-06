@@ -38,6 +38,10 @@ function configuredInviteCodes() {
     .filter(Boolean);
 }
 
+function isOpenRegistration() {
+  return /^true$/i.test(String(process.env.PILAR_OPEN_REGISTRATION || '').trim());
+}
+
 function redeemInviteCode(code, userId) {
   const configured = configuredInviteCodes();
   if (!configured.length) return false;
@@ -100,11 +104,12 @@ function register({ name, email, password, registrationCode, legalConsent }) {
   const safePassword = String(password || '');
   const inviteCode = String(registrationCode || '').trim();
   const hasInviteCodes = configuredInviteCodes().length > 0;
+  const openRegistration = isOpenRegistration();
 
-  if (process.env.NODE_ENV === 'production' && !hasInviteCodes) {
+  if (!openRegistration && process.env.NODE_ENV === 'production' && !hasInviteCodes) {
     throw new Error('El registro no está habilitado todavía. El administrador debe configurar códigos individuales de invitación.');
   }
-  if (hasInviteCodes && !inviteCode) throw new Error('El código de invitación es obligatorio.');
+  if (!openRegistration && hasInviteCodes && !inviteCode) throw new Error('El código de invitación es obligatorio.');
   if (safeName.length < 2 || safeName.length > 100) throw new Error('El nombre debe tener entre 2 y 100 caracteres.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
     throw new Error('Escribe un correo electrónico válido.');
@@ -130,7 +135,7 @@ function register({ name, email, password, registrationCode, legalConsent }) {
     legalAcceptedAt: new Date().toISOString(),
     legalVersion: process.env.PILAR_LEGAL_VERSION || 'draft-2026-10-06',
   };
-  if (hasInviteCodes) redeemInviteCode(inviteCode, user.id);
+  if (!openRegistration && hasInviteCodes) redeemInviteCode(inviteCode, user.id);
   users.push(user);
   writeUsers(users);
   return createSession(user);

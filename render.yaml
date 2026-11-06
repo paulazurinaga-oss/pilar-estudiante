@@ -16,6 +16,8 @@ services:
         value: 0.0.0.0
       - key: PILAR_DATA_PATH
         value: /data/storage
+      - key: PILAR_OPEN_REGISTRATION
+        value: "true"
       - key: GEMINI_API_KEY
         sync: false
       - key: PILAR_REGISTRATION_CODES
@@ -27,7 +29,7 @@ services:
       - key: MERCADOPAGO_WEBHOOK_SECRET
         sync: false
       - key: PILAR_WEB_PRICE_ARS
-        sync: false
+        value: "15000"
       - key: PILAR_PUBLIC_URL
         sync: false
       - key: GEMINI_MODEL
