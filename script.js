@@ -549,18 +549,68 @@ function buildAiResponse(prompt, context = '') {
   return `Respuesta específica para: "${prompt || 'tu solicitud'}"\n\nSe puede trabajar así:\n- definir objetivos\n- resumir lo esencial\n- crear fichas o esquema\n- preparar preguntas de repaso\n- convertir el resultado en material listo para estudiar.`;
 }
 
-async function requestAiResponse(prompt, context = '', attachments = []) {
+async function requestAiResponse(prompt, context = '', attachments = [], onText) {
+  let content = '';
   try {
-    const result = await apiRequest('/ai/chat', {
+    const response = await fetch(`${API_BASE}/ai/chat`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify({ prompt, context, attachments }),
     });
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({ error: 'Request failed' }));
+      if (response.status === 401) {
+        document.getElementById('welcomeModal').classList.remove('hidden');
+        document.getElementById('appShell').classList.add('hidden');
+        setAuthMode('login');
+      }
+      throw new Error(errorPayload.error || 'Request failed');
+    }
+    if (!response.body) throw new Error('El navegador no admite respuestas de streaming.');
 
-    if (result?.content) return result.content;
-    throw new Error('El servicio no devolvió contenido.');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+    let completed = false;
+
+    function processEvent(eventText) {
+      if (!eventText || eventText.startsWith(':')) return;
+      const lines = eventText.split(/\r?\n/);
+      const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim();
+      const data = lines.filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n');
+      if (!data) return;
+      const payload = JSON.parse(data);
+      if (event === 'delta') {
+        content += payload.text || '';
+        onText?.(payload.text || '');
+      } else if (event === 'done') {
+        completed = true;
+      } else if (event === 'error') {
+        throw new Error(payload.error || 'No se pudo completar la respuesta de IA.');
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      pending += decoder.decode(value, { stream: !done });
+      const events = pending.split(/\r?\n\r?\n/);
+      pending = events.pop() || '';
+      for (const eventText of events) processEvent(eventText);
+      if (done) break;
+    }
+    if (pending.trim()) processEvent(pending);
+    if (!completed) throw new Error('La conexión de streaming terminó antes de completar la respuesta.');
+    if (!content) throw new Error('El servicio no devolvió contenido.');
+    return content;
   } catch (error) {
     setStatus(`No se obtuvo respuesta de IA: ${error.message}`);
-    return `No se pudo obtener la respuesta. ${error.message}`;
+    const message = content
+      ? `\n\nLa respuesta se interrumpió: ${error.message}`
+      : `No se pudo obtener la respuesta. ${error.message}`;
+    onText?.(message);
+    return `${content}${message}`;
   }
 }
 
@@ -1584,8 +1634,13 @@ aiSendBtn.addEventListener('click', async () => {
     attachmentContext = `Archivo de texto ${aiAttachment.name} incluido en la solicitud.`;
   }
 
-  output.textContent = 'Preparando respuesta...';
-  output.textContent = await requestAiResponse(prompt, `Se está trabajando con un pedido específico del usuario. ${attachmentContext}`, attachments);
+  output.textContent = '';
+  await requestAiResponse(
+    prompt,
+    `Se está trabajando con un pedido específico del usuario. ${attachmentContext}`,
+    attachments,
+    (text) => { output.textContent += text; },
+  );
 });
 
 const aiCopyBtn = document.getElementById('aiCopyBtn');

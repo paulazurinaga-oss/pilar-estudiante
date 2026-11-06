@@ -81,6 +81,91 @@ async function geminiRequest({ model, parts, signal, generationConfig }) {
   throw lastError || new Error('Gemini no respondió.');
 }
 
+async function geminiStreamRequest({ model, parts, signal, onText }) {
+  if (!apiConfig.gemini.apiKey) {
+    throw new Error('GEMINI_API_KEY no está configurada.');
+  }
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiConfig.gemini.apiKey)}`;
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS)])
+    : AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS);
+  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+  let response;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: requestSignal,
+        body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+      });
+    } catch (error) {
+      if (requestSignal.aborted || attempt === 2) throw error;
+      await waitForRetry(Math.min(1000 * (2 ** attempt), 8000), requestSignal);
+      continue;
+    }
+
+    if (response.ok) break;
+    const errorText = await response.text();
+    const error = new Error(`Gemini request failed: ${response.status} ${errorText}`);
+    error.status = response.status;
+    if (!retryableStatuses.has(response.status) || attempt === 2) throw error;
+    await waitForRetry(retryDelayMs(response, attempt), requestSignal);
+  }
+
+  if (!response?.ok) throw new Error('Gemini no respondió.');
+  if (!response.body) throw new Error('Gemini devolvió una respuesta de streaming vacía.');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let content = '';
+
+  async function processEvent(eventText) {
+    const data = eventText.split(/\r?\n/)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart())
+      .join('\n');
+    if (!data || data === '[DONE]') return;
+
+    const chunk = JSON.parse(data);
+    if (chunk.error) {
+      const error = new Error(chunk.error.message || 'Gemini devolvió un error de streaming.');
+      error.status = chunk.error.code;
+      throw error;
+    }
+
+    const text = chunk?.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || '')
+      .join('');
+    if (text) {
+      content += text;
+      await onText(text);
+    }
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      pending += decoder.decode(value, { stream: !done });
+      const events = pending.split(/\r?\n\r?\n/);
+      pending = events.pop() || '';
+      for (const eventText of events) await processEvent(eventText);
+      if (done) break;
+    }
+    if (pending.trim()) await processEvent(pending);
+  } catch (error) {
+    await reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!content.trim()) throw new Error('Gemini no devolvió contenido.');
+  return content;
+}
+
 function extractGeminiText(data) {
   return data?.candidates?.[0]?.content?.parts
     ?.map((part) => part.text || '')
@@ -156,26 +241,39 @@ Se puede trabajar de forma ordenada con:
 - material listo para estudiar.`;
 }
 
+function buildAssistantParts(prompt, context, attachments) {
+  const parts = [{
+    text: `Eres el asistente académico de PILAR del estudiante. Responde con precisión, claridad y estructura útil para estudiar.\n${context ? `${context}\n` : ''}${prompt}`,
+  }];
+  let totalBytes = 0;
+  for (const attachment of attachments) {
+    const mimeType = String(attachment.mimeType || '');
+    const data = String(attachment.data || '');
+    const buffer = Buffer.from(data, 'base64');
+    totalBytes += buffer.length;
+    if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) {
+      throw new Error(`Tipo de archivo no admitido para análisis: ${mimeType || 'desconocido'}.`);
+    }
+    if (!buffer.length || totalBytes > 12 * 1024 * 1024) {
+      throw new Error('Los archivos adjuntos superan el límite conjunto de 12 MB o están vacíos.');
+    }
+    parts.push({ inline_data: { mime_type: mimeType, data: buffer.toString('base64') } });
+  }
+  return parts;
+}
+
+function assistantFailure(error) {
+  const errorDetail = error?.message || 'Error desconocido';
+  const quotaExceeded = isQuotaError(error);
+  const userMessage = quotaExceeded
+    ? 'Límite de cuota gratuita de Gemini alcanzado. Por favor, aguarda unos minutos.'
+    : `No se obtuvo una respuesta de IA. Gemini puede estar temporalmente no disponible; revisa el modelo y vuelve a intentarlo. Detalle: ${errorDetail}`;
+  return { content: userMessage, fallback: true, error: errorDetail, userMessage, quotaExceeded };
+}
+
 async function generateAssistantReply(prompt, context = '', attachments = []) {
   try {
-    const parts = [{
-      text: `Eres el asistente académico de PILAR del estudiante. Responde con precisión, claridad y estructura útil para estudiar.\n${context ? `${context}\n` : ''}${prompt}`,
-    }];
-    let totalBytes = 0;
-    for (const attachment of attachments) {
-      const mimeType = String(attachment.mimeType || '');
-      const data = String(attachment.data || '');
-      const buffer = Buffer.from(data, 'base64');
-      totalBytes += buffer.length;
-      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) {
-        throw new Error(`Tipo de archivo no admitido para análisis: ${mimeType || 'desconocido'}.`);
-      }
-      if (!buffer.length || totalBytes > 12 * 1024 * 1024) {
-        throw new Error('Los archivos adjuntos superan el límite conjunto de 12 MB o están vacíos.');
-      }
-      parts.push({ inline_data: { mime_type: mimeType, data: buffer.toString('base64') } });
-    }
-
+    const parts = buildAssistantParts(prompt, context, attachments);
     const data = await geminiRequest({
       model: apiConfig.gemini.model,
       parts,
@@ -188,18 +286,25 @@ async function generateAssistantReply(prompt, context = '', attachments = []) {
       fallback: false,
     };
   } catch (error) {
-    const errorDetail = error?.message || 'Error desconocido';
-    const quotaExceeded = isQuotaError(error);
-    const userMessage = quotaExceeded
-      ? 'Límite de cuota gratuita de Gemini alcanzado. Por favor, aguarda unos minutos.'
-      : `No se obtuvo una respuesta de IA. Gemini puede estar temporalmente no disponible; revisa el modelo y vuelve a intentarlo. Detalle: ${errorDetail}`;
-    return {
-      content: userMessage,
-      fallback: true,
-      error: errorDetail,
-      userMessage,
-      quotaExceeded,
-    };
+    return assistantFailure(error);
+  }
+}
+
+async function generateAssistantReplyStream(prompt, context = '', attachments = [], onText, signal) {
+  try {
+    const parts = buildAssistantParts(prompt, context, attachments);
+    const content = await geminiStreamRequest({
+      model: apiConfig.gemini.model,
+      parts,
+      signal,
+      onText,
+    });
+    return { content, fallback: false, quotaExceeded: false };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    const result = assistantFailure(error);
+    await onText(result.content);
+    return result;
   }
 }
 
@@ -306,6 +411,7 @@ async function textToSpeech({ text, voice = 'alloy' }) {
 
 module.exports = {
   generateAssistantReply,
+  generateAssistantReplyStream,
   generateImage,
   generateInfographic,
   transcribeAudio,

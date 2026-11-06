@@ -5,7 +5,7 @@ const { apiConfig } = require('./src/services/appConfig');
 const { register, login, getSession, redeemLicense, destroySession, deleteAccount, SESSION_DURATION_MS } = require('./src/services/authService');
 const { listFolders, saveFolders } = require('./src/services/userDataService');
 const { getPaymentConfig, createCheckout, verifyWebhookSignature, processPaymentNotification, getOrder } = require('./src/services/paymentService');
-const { generateAssistantReply, generateImage, generateInfographic } = require('./src/services/aiService');
+const { generateAssistantReplyStream, generateImage, generateInfographic } = require('./src/services/aiService');
 const { saveBinaryFile, saveTextFile, listFiles, deleteFile } = require('./src/services/storageService');
 const { createJob, getJob, cancelJob, publicJob, activeJobCount } = require('./src/services/transcriptionQueue');
 
@@ -55,6 +55,24 @@ function sendJson(res, statusCode, payload) {
     'X-Content-Type-Options': 'nosniff',
   });
   res.end(JSON.stringify(payload));
+}
+
+function writeSse(res, event, payload) {
+  if (res.destroyed || res.writableEnded) return Promise.reject(new Error('El cliente cerró la conexión.'));
+  if (res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      res.removeListener('drain', onDrain);
+      res.removeListener('close', onClose);
+      res.removeListener('error', onError);
+    };
+    const onDrain = () => { cleanup(); resolve(); };
+    const onClose = () => { cleanup(); reject(new Error('El cliente cerró la conexión.')); };
+    const onError = (error) => { cleanup(); reject(error); };
+    res.once('drain', onDrain);
+    res.once('close', onClose);
+    res.once('error', onError);
+  });
 }
 
 function isGeminiQuotaError(error) {
@@ -439,14 +457,45 @@ async function handleRoutes(req, res) {
     try {
       const body = await readRequestBody(req, 16 * 1024 * 1024);
       const payload = JSON.parse(body.toString() || '{}');
-      const result = await generateAssistantReply(payload.prompt || '', payload.context || '', payload.attachments || []);
-      if (result.quotaExceeded) {
-        sendJson(res, 429, { success: false, error: result.userMessage });
-        return;
+      const abortController = new AbortController();
+      const abortOnDisconnect = () => {
+        if (!res.writableEnded) abortController.abort(new Error('El cliente cerró la conexión.'));
+      };
+      res.once('close', abortOnDisconnect);
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.write(': connected\n\n');
+      const heartbeat = setInterval(() => {
+        if (!res.destroyed && !res.writableEnded) res.write(': keep-alive\n\n');
+      }, 15_000);
+      heartbeat.unref();
+
+      try {
+        const result = await generateAssistantReplyStream(
+          payload.prompt || '',
+          payload.context || '',
+          payload.attachments || [],
+          (text) => writeSse(res, 'delta', { text }),
+          abortController.signal,
+        );
+        await writeSse(res, 'done', { fallback: result.fallback, quotaExceeded: result.quotaExceeded });
+      } catch (error) {
+        if (!abortController.signal.aborted && !res.destroyed) {
+          await writeSse(res, 'error', { error: error.message || 'No se pudo completar la respuesta de IA.' });
+        }
+      } finally {
+        clearInterval(heartbeat);
+        res.removeListener('close', abortOnDisconnect);
+        if (!res.writableEnded && !res.destroyed) res.end();
       }
-      sendJson(res, 200, result);
     } catch (error) {
-      sendJson(res, 500, { error: error.message || 'No se pudo procesar la solicitud de IA.' });
+      if (!res.headersSent) sendJson(res, 500, { error: error.message || 'No se pudo procesar la solicitud de IA.' });
+      else if (!res.destroyed && !res.writableEnded) res.end();
     }
     return;
   }

@@ -1,6 +1,12 @@
 const assert = require('node:assert/strict');
 const { afterEach, test } = require('node:test');
-const { generateAssistantReply, generateImage, generateInfographic, transcribeAudio } = require('../src/services/aiService');
+const {
+  generateAssistantReply,
+  generateAssistantReplyStream,
+  generateImage,
+  generateInfographic,
+  transcribeAudio,
+} = require('../src/services/aiService');
 
 const originalFetch = global.fetch;
 
@@ -69,6 +75,41 @@ test('limits each Gemini request to 60 seconds', async () => {
   } finally {
     AbortSignal.timeout = originalTimeout;
   }
+});
+
+test('streams Gemini text chunks without trimming their whitespace', async () => {
+  const chunks = [
+    { candidates: [{ content: { parts: [{ text: 'Hola' }] } }] },
+    { candidates: [{ content: { parts: [{ text: ' mundo.' }] } }] },
+  ];
+  const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('');
+  let endpoint;
+  global.fetch = async (url) => {
+    endpoint = String(url);
+    return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+  };
+  const received = [];
+  const result = await generateAssistantReplyStream('Saluda', '', [], async (text) => received.push(text));
+  assert.match(endpoint, /:streamGenerateContent\?alt=sse&key=/);
+  assert.deepEqual(received, ['Hola', ' mundo.']);
+  assert.equal(result.content, 'Hola mundo.');
+  assert.equal(result.fallback, false);
+});
+
+test('retries a transient Gemini error before opening the text stream', async () => {
+  const chunk = { candidates: [{ content: { parts: [{ text: 'Recuperado.' }] } }] };
+  let attempts = 0;
+  global.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) return overloaded();
+    return new Response(`data: ${JSON.stringify(chunk)}\n\n`, {
+      headers: { 'content-type': 'text/event-stream' },
+    });
+  };
+  const result = await generateAssistantReplyStream('Reintenta', '', [], async () => {});
+  assert.equal(attempts, 2);
+  assert.equal(result.content, 'Recuperado.');
+  assert.equal(result.fallback, false);
 });
 
 test('returns generated image bytes from Gemini', async () => {
