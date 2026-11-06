@@ -1,5 +1,7 @@
 # PILAR del estudiante: instalación y empaquetado
 
+**Pre-lanzamiento:** los siguientes pasos describen empaquetado técnico, no certifican que el servicio esté listo para venta. Completar privacidad, condiciones, pagos, soporte y prueba de producción.
+
 ## PWA en teléfono o PC
 
 1. Ejecuta `npm start`.
@@ -20,7 +22,7 @@ npm run package:win
 
 El script usa Node 22 para evitar una salida prematura de `electron-packager` en Node 24.
 
-El resultado se crea dentro de `dist/`. Para abrir el modo escritorio durante desarrollo:
+El instalador Windows se crea dentro de `dist-installer/`. Para abrir el modo escritorio durante desarrollo:
 
 ```powershell
 npm run desktop
@@ -28,7 +30,7 @@ npm run desktop
 
 El modo escritorio inicia automáticamente `server.js`. Si el puerto 3000 está ocupado, cierra el proceso anterior o inicia la app web en otro puerto mediante `PORT=3010`.
 
-En el paquete final, coloca `.env` en la misma carpeta que `PILAR.exe`. Electron pasa esa ruta al servidor interno y la configuración se carga antes de abrir la ventana. No incluyas `.env` en repositorios ni distribuyas una clave compartida.
+En escritorio, el comprador pega su propia clave Gemini en Configuración; la aplicación la guarda en su perfil privado de Windows. No necesita crear `.env`, y tu clave nunca entra al instalador. Después del cobro y verificación, emite el código para el correo del comprador con `npm run license:issue -- desktop correo-del-comprador`. No distribuyas la clave privada del emisor ni el servidor local de Electron a Internet.
 
 ## Android como APK
 
@@ -73,6 +75,6 @@ docker compose up -d --build
 
 No subas `.env` a GitHub. En el hosting configura `GEMINI_API_KEY` como secreto y usa HTTPS delante del puerto `3000`.
 
-Para Render, sube el proyecto a un repositorio privado de GitHub y crea un nuevo Blueprint usando `render.yaml`. Render pedirá el valor de `GEMINI_API_KEY` como secreto. El plan configurado incluye un disco persistente de 10 GB para conservar archivos.
+Para Render, revisa los cambios locales y publícalos deliberadamente en un repositorio privado. Crea un Blueprint usando `render.yaml` y configura los secretos `GEMINI_API_KEY`, `PILAR_REGISTRATION_CODES` y `PILAR_LICENSE_CODES`. El Blueprint incluye disco persistente. Genera invitaciones/licencias individuales con `node tools/generate-license-codes.js invite 10` y `node tools/generate-license-codes.js license 10`; guarda sus salidas fuera del repo.
 
-Después configura el dominio HTTPS del hosting hacia el puerto `3000`. Comprueba `https://TU-DOMINIO/api/health` antes de compartir el enlace. Para producción, guarda también el almacenamiento en un volumen persistente para que las cargas sobrevivan a los reinicios del contenedor.
+Antes de invitar usuarios, valida HTTPS, registro, sesión tras reinicio, aislamiento entre dos cuentas, eliminación de cuenta, salud del modelo, una transcripción real y una generación de imagen real. El backend usa almacenamiento JSON local y requiere una única instancia con disco persistente; no escalar horizontalmente sin migrar usuarios, sesiones, licencias y archivos a servicios compartidos/transaccionales.

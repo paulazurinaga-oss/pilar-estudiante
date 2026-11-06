@@ -2,14 +2,27 @@ const { app, BrowserWindow } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const net = require('net');
 
 let serverProcess;
-const serverUrl = 'http://127.0.0.1:3000';
+let serverPort = Number(process.env.PORT || 3000);
+let serverUrl = `http://127.0.0.1:${serverPort}`;
 const debugMode = false;
+
+function findAvailablePort() {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close((error) => error ? reject(error) : resolve(port));
+    });
+  });
+}
 
 function getExternalEnvPath() {
   return app.isPackaged
-    ? path.join(path.dirname(process.execPath), '.env')
+    ? path.join(app.getPath('userData'), 'settings', '.env')
     : path.join(__dirname, '.env');
 }
 
@@ -39,7 +52,10 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.svg'),
     webPreferences: {
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false,
+      allowRunningInsecureContent: false
     }
   });
 
@@ -62,27 +78,49 @@ function createWindow() {
 
 function startServer() {
   migrateStorage();
+  fs.mkdirSync(path.dirname(getExternalEnvPath()), { recursive: true });
   console.log(`[PILAR] Iniciando servidor interno. cwd=${__dirname}`);
   console.log(`[PILAR] Archivo externo de entorno=${getExternalEnvPath()}`);
-  serverProcess = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
-    cwd: __dirname,
-    stdio: 'inherit',
-    windowsHide: !debugMode,
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-      AURAPILAR_DEBUG: debugMode ? '1' : '0',
-      AURAPILAR_ENV_PATH: getExternalEnvPath(),
-      AURAPILAR_DATA_PATH: getPersistentStoragePath()
-    }
-  });
 
-  serverProcess.on('error', (error) => {
-    console.error(`[PILAR] No se pudo iniciar el servidor interno: ${error.message}`);
-  });
-  serverProcess.on('exit', (code, signal) => {
-    console.error(`[PILAR] Servidor interno terminó. code=${code} signal=${signal || 'none'}`);
-  });
+  return fetch(`${serverUrl}/api/health`)
+    .then((response) => {
+      if (response.ok) {
+        return response.json();
+      }
+      throw new Error('El puerto está ocupado por otro servicio.');
+    })
+    .then(async (health) => {
+      if (health?.ok && health.app === 'PILAR del estudiante') {
+        console.log(`[PILAR] Se reutiliza una instancia existente en el puerto ${serverPort}.`);
+        return false;
+      }
+      serverPort = await findAvailablePort();
+      serverUrl = `http://127.0.0.1:${serverPort}`;
+      serverProcess = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+        cwd: __dirname,
+        stdio: 'inherit',
+        windowsHide: !debugMode,
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: '1',
+          NODE_ENV: app.isPackaged ? 'desktop' : (process.env.NODE_ENV || 'development'),
+          PORT: String(serverPort),
+          HOST: '127.0.0.1',
+              PILAR_DEBUG: debugMode ? '1' : '0',
+          PILAR_ALLOW_USER_API_KEY: '1',
+              PILAR_ENV_PATH: getExternalEnvPath(),
+              PILAR_DATA_PATH: getPersistentStoragePath()
+        }
+      });
+
+      serverProcess.on('error', (error) => {
+        console.error(`[PILAR] No se pudo iniciar el servidor interno: ${error.message}`);
+      });
+      serverProcess.on('exit', (code, signal) => {
+        console.error(`[PILAR] Servidor interno terminó. code=${code} signal=${signal || 'none'}`);
+      });
+      return true;
+    });
 }
 
 async function waitForServer() {
@@ -107,7 +145,7 @@ function stopServer() {
 }
 
 app.whenReady().then(async () => {
-  startServer();
+  await startServer();
   try {
     await waitForServer();
     createWindow();

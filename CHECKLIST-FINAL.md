@@ -1,3 +1,7 @@
+# Estado actualizado: pre-lanzamiento
+
+Los checks históricos de este documento no certifican el estado actual de producción. La app tiene pruebas de integración locales para autenticación y aislamiento; no existe aún validación de pagos, despliegue en Render ni transcripción/generación real con cuotas comerciales. Seguir [INICIO-RAPIDO.md](INICIO-RAPIDO.md) para los pendientes actuales.
+
 # ✅ CHECKLIST FINAL - PILAR DEL ESTUDIANTE
 
 **Completado por:** Asistente de Copilot  
@@ -15,8 +19,8 @@
 - [x] Verificación: ✅ Logo correcto en http://127.0.0.1:3000
 
 ### 2. Modelo Gemini no existe
-- [x] Problema: `gemini-3.6-flash` no es un modelo válido
-- [x] Solución: Cambiado a `gemini-1.5-flash` (modelo estable)
+- [x] Problema: había modelos retirados o no disponibles para la cuenta
+- [x] Solución: Cambiado a `gemini-flash-latest` y validado con una respuesta real
 - [x] Archivos: `.env`, `.env.example`
 - [x] Verificación: ✅ Servidor iniciado correctamente
 
@@ -237,7 +241,7 @@ ls -la | grep ".env"
 
 ## ✨ CONCLUSIÓN
 
-**✅ PILAR DEL ESTUDIANTE ESTÁ COMPLETAMENTE LISTA PARA PRODUCCIÓN**
+**ESTADO HISTÓRICO OBSOLETO:** PILAR no está certificada para producción. Ver el aviso actualizado al inicio de este documento y la guía de pre-lanzamiento.
 
 Todos los problemas fueron encontrados y solucionados.  
 Toda la documentación está completa.  

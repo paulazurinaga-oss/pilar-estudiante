@@ -27,21 +27,57 @@
         <h1>¡Hola, estudiante!</h1>
         <p>Tu espacio de estudio inteligente está listo para comenzar.</p>
         <form id="registerForm" class="register-form">
-          <label>
+          <p class="legal-links"><a href="/PRIVACIDAD.md" target="_blank" rel="noopener">Privacidad</a> · <a href="/CONDICIONES-DE-USO.md" target="_blank" rel="noopener">Condiciones de uso</a></p>
+          <label id="studentNameField">
             Nombre
-            <input type="text" id="studentName" placeholder="Ej: Valentina" required />
+            <input type="text" id="studentName" placeholder="Ej: Valentina" minlength="2" maxlength="100" required />
           </label>
           <label>
             Correo
             <input type="email" id="studentEmail" placeholder="estudiante@correo.com" required />
           </label>
-          <div class="trial-box">
+          <label>
+            Contraseña
+            <input type="password" id="accountPassword" minlength="12" maxlength="256" autocomplete="new-password" required />
+          </label>
+          <label id="legalConsentField" class="consent-row">
+            <input type="checkbox" id="legalConsent" required />
+            <span>Acepto las <a href="/CONDICIONES-DE-USO.md" target="_blank" rel="noopener">condiciones de uso</a> y el <a href="/PRIVACIDAD.md" target="_blank" rel="noopener">aviso de privacidad</a>.</span>
+          </label>
+          <label id="registrationCodeField">
+            Código de invitación (si el registro está restringido)
+            <input type="password" id="registrationCode" autocomplete="off" />
+          </label>
+          <p id="authError" class="auth-error" role="alert"></p>
+          <div class="trial-box" id="trialNotice">
             <strong>Versión de prueba</strong>
-            <span>Activa por 7 días. Luego podrás pagar la versión completa.</span>
+            <span>El acceso de prueba dura 7 días. La activación paga todavía requiere configuración comercial.</span>
           </div>
-          <button type="submit" class="primary-btn">Entrar a la prueba</button>
+          <button type="submit" class="primary-btn" id="authSubmit">Crear cuenta de prueba</button>
+          <button type="button" class="ghost-btn" id="authModeToggle">Ya tengo una cuenta</button>
         </form>
       </div>
+    </div>
+
+    <div id="imagePromptModal" class="modal hidden" aria-modal="true" role="dialog">
+      <div class="modal-card compact-modal">
+        <h3>Generar mapa visual con IA</h3>
+        <p>Describe el tema, estilo o diagrama que quieres crear.</p>
+        <textarea id="modalImagePrompt" rows="5" placeholder="Ej: Un mapa conceptual sobre fotosíntesis con colores claros y estilo académico..."></textarea>
+        <p id="imagePromptError" class="auth-error" role="alert"></p>
+        <div class="modal-actions">
+          <button class="primary-btn" id="confirmGenerateImageBtn">Generar mapa visual</button>
+          <button class="ghost-btn" id="closeImagePromptModalBtn">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="sendHubMenu" class="send-menu hidden" role="menu" aria-label="Enviar a acciones">
+      <div class="send-menu-header">Enviar</div>
+      <button type="button" class="send-menu-option" data-send-action="ai-summary">Procesar con Asistente IA</button>
+      <button type="button" class="send-menu-option" data-send-action="save-folder">Mover / Guardar en carpeta</button>
+      <button type="button" class="send-menu-option" data-send-action="export-share">Exportar / Compartir</button>
+      <button type="button" class="send-menu-option subtle" data-send-action="close">Cerrar</button>
     </div>
 
     <div class="app-shell hidden" id="appShell">
@@ -66,7 +102,7 @@
           <button class="nav-btn" data-tab="audios">Audios</button>
           <button class="nav-btn" data-tab="documentos">Documentos</button>
           <button class="nav-btn" data-tab="asistente">Asistente IA</button>
-          <button class="nav-btn" data-tab="imagenes">Imágenes IA</button>
+          <button class="nav-btn" data-tab="imagenes">Mapas e infografías</button>
           <button class="nav-btn" data-tab="configuracion">Configuración</button>
         </nav>
       </aside>
@@ -82,6 +118,7 @@
             <button class="ghost-btn" id="copyAction">Copiar</button>
             <button class="ghost-btn" id="pasteAction">Pegar</button>
             <button class="ghost-btn danger" id="deleteAction">Eliminar</button>
+            <button class="ghost-btn" id="logoutBtn">Cerrar sesión</button>
           </div>
         </header>
 
@@ -127,8 +164,8 @@
             </button>
             <button class="quick-card" data-tab="imagenes">
               <span>🖼️</span>
-              <strong>Imágenes IA</strong>
-              <small>Crear y mejorar</small>
+              <strong>Mapas e infografías</strong>
+              <small>Visualizar ideas</small>
             </button>
             <button class="quick-card" data-tab="configuracion">
               <span>⚙️</span>
@@ -201,23 +238,30 @@
             <div class="transcript-meta">
               <div>
                 <strong id="audioName">Sin archivo seleccionado</strong>
-                <small>Soporta audio de hasta 4 horas</small>
+                <small>Límite recomendado: 3 a 4 horas, procesadas en fragmentos de 20 a 30 min para mantener estabilidad.</small>
               </div>
               <div class="mini-actions">
                 <button class="ghost-btn" id="transcribeBtn">Transcribir</button>
+                <button class="ghost-btn danger" id="cancelTranscriptionBtn">Cancelar</button>
                 <button class="ghost-btn" id="copyTranscriptBtn">Copiar</button>
                 <button class="ghost-btn" id="saveTranscriptBtn">Guardar</button>
                 <button class="ghost-btn" id="deleteTranscriptBtn">Eliminar</button>
               </div>
             </div>
 
+            <div class="progress-wrap" aria-live="polite">
+              <div class="progress-label" id="transcriptionProgressLabel">Preparando audio...</div>
+              <div class="progress-bar"><span id="transcriptionProgressBar" style="width: 0%"></span></div>
+            </div>
+
             <textarea id="transcriptOutput" placeholder="La transcripción aparecerá aquí...">La transcripción aparecerá aquí con segmentos, palabras clave y detalle fino de audio prolongado, listo para guardar, compartir, enviar a IA o convertir en fichas interactivas.</textarea>
 
             <div class="generation-row">
               <button class="ghost-btn" id="sendToAiBtn">Enviar a IA</button>
-              <button class="ghost-btn" id="generateImageBtn">Generar imagen</button>
+              <button class="ghost-btn" id="generateImageBtn">Generar mapa visual</button>
               <button class="ghost-btn" id="generateMapBtn">Mapa conceptual</button>
-              <button class="ghost-btn" id="speakTextBtn">Texto a voz</button>
+              <button class="ghost-btn" id="speakTextBtn">Leer en voz alta</button>
+              <button class="ghost-btn" id="toggleSpeakerLabelsBtn">Ocultar etiquetas</button>
             </div>
           </div>
         </section>
@@ -276,7 +320,7 @@
             <textarea id="aiPrompt" placeholder="Escribe tu pedido: resúmeme, explica esta idea, crea un esquema o revisa un documento..."></textarea>
             <label class="file-select-label ghost-btn">
               Adjuntar archivo
-              <input id="aiFileInput" type="file" accept=".txt,.md,.csv,.json,.pdf,image/*,audio/*" />
+              <input id="aiFileInput" type="file" accept=".txt,.md,.csv,.json,.pdf,image/png,image/jpeg,image/webp,audio/*" />
             </label>
             <small id="aiFileName">Sin archivo adjunto</small>
             <div class="ai-actions">
@@ -294,23 +338,27 @@
         <section class="tab-panel" data-panel="imagenes">
           <div class="section-header">
             <div>
-              <span class="eyebrow">Imágenes IA</span>
-              <h3>Crear y mejorar imágenes</h3>
+              <span class="eyebrow">Visuales IA</span>
+              <h3>Mapas mentales e infografías</h3>
             </div>
-            <label class="primary-btn file-select-label">
-              Cargar imagen
-              <input id="imageUploadInput" type="file" accept="image/*" />
-            </label>
           </div>
 
           <div class="image-builder">
-            <textarea id="imagePrompt" placeholder="Describe la imagen que quieres crear o mejorar..."></textarea>
+            <textarea id="imagePrompt" placeholder="Ejemplo: mapa mental sobre la fotosíntesis con causas, etapas y resultados..."></textarea>
             <div class="ai-actions">
-              <button class="primary-btn" id="generateImageBtn2">Generar imagen</button>
-              <button class="ghost-btn" id="imageSaveBtn">Guardar</button>
-              <button class="ghost-btn" id="imageShareBtn">Compartir</button>
+              <button class="primary-btn" id="generateImageBtn2">Generar mapa visual</button>
+              <button class="ghost-btn" id="infographicCopyBtn">Copiar estructura</button>
+              <button class="ghost-btn" id="infographicExportBtn">Exportar archivo</button>
+              <button class="ghost-btn" id="infographicSendAiBtn">Enviar a Asistente</button>
+              <button class="ghost-btn" id="infographicSendStudyBtn">Enviar a Cuaderno</button>
             </div>
-            <div class="generated-image" id="generatedImage"></div>
+            <div class="generated-image infographic-preview" id="generatedImage" aria-live="polite">
+              El diagrama visual aparecerá aquí.
+            </div>
+            <details class="infographic-code-panel">
+              <summary>Ver estructura Mermaid</summary>
+              <pre id="infographicCode">Aún no hay una estructura generada.</pre>
+            </details>
           </div>
         </section>
 
@@ -350,6 +398,29 @@
                 <option value="'Playfair Display'">Playfair Display</option>
               </select>
             </div>
+            <div class="config-card full-width">
+              <label for="licenseCodeInput">Activar licencia</label>
+              <input id="licenseCodeInput" type="password" autocomplete="off" placeholder="Código de licencia" />
+              <button class="primary-btn" id="activateLicenseBtn">Activar</button>
+            </div>
+            <div class="config-card full-width hidden" id="webPurchasePanel">
+              <label>Comprar licencia web</label>
+              <p id="webPurchasePrice">Pago único en pesos argentinos.</p>
+              <button class="primary-btn" id="buyWebLicenseBtn">Continuar a Mercado Pago</button>
+              <small id="webPurchaseStatus" role="status"></small>
+            </div>
+            <div class="config-card full-width hidden" id="personalGeminiKeyPanel">
+              <label for="personalGeminiKey">Tu clave de Google Gemini</label>
+              <input id="personalGeminiKey" type="password" autocomplete="new-password" maxlength="256" placeholder="Pega tu propia clave de Google AI Studio" />
+              <button class="primary-btn" id="savePersonalGeminiKey">Guardar clave en este equipo</button>
+              <small id="personalGeminiKeyStatus">Tu clave queda en el perfil privado de Windows y no se envía a PILAR web. Se aplican los límites y condiciones de Google AI Studio.</small>
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Obtener una clave de Google AI Studio</a>
+            </div>
+            <div class="config-card full-width">
+              <label for="deleteAccountPassword">Eliminar cuenta y datos</label>
+              <input id="deleteAccountPassword" type="password" autocomplete="current-password" placeholder="Confirma con tu contraseña" />
+              <button class="ghost-btn danger" id="deleteAccountBtn">Eliminar mi cuenta</button>
+            </div>
           </div>
         </section>
       </main>
@@ -373,14 +444,32 @@
       </aside>
     </div>
 
+    <div id="floatingAudioPlayer" class="floating-audio-player hidden" aria-live="polite">
+      <div class="floating-audio-header">
+        <span id="floatingAudioTitle">Reproducción</span>
+        <button type="button" class="floating-close" id="floatingAudioCloseBtn" aria-label="Cerrar reproductor">×</button>
+      </div>
+      <div class="floating-audio-controls">
+        <button type="button" class="ghost-btn small" data-floating-action="rewind">-10s</button>
+        <button type="button" class="primary-btn small" data-floating-action="toggle-play">Play</button>
+        <button type="button" class="ghost-btn small" data-floating-action="forward">+10s</button>
+        <label class="speed-select-wrap">
+          <span>Vel.</span>
+          <select id="floatingAudioSpeed">
+            <option value="1">1x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+          </select>
+        </label>
+      </div>
+      <div class="floating-progress-wrap">
+        <span id="floatingAudioTime">0:00</span>
+        <input id="floatingAudioProgress" type="range" min="0" max="100" value="0" />
+        <span id="floatingAudioDuration">0:00</span>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script src="script.js"></script>
-    <script>
-      if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
-        window.addEventListener('load', () => {
-          if (document.visibilityState === 'prerender') return;
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
-        }, { once: true });
-      }
-    </script>
   </body>
 </html>

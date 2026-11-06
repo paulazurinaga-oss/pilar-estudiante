@@ -2,20 +2,29 @@
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
 
 # Node dependencies
 node_modules/
 npm-debug.log
 yarn-error.log
-package-lock.json
 
 # Build outputs y empaquetados
 dist/
+dist-installer/
+dist-installer-verified/
+dist-installer-sale/
+dist-portable/
 dist-pilar-*/
 
 # Almacenamiento de usuario
 storage/uploads/*
 storage/pdfs/*
+storage/auth/
+storage/licenses/
+storage/users/
+storage/payments/
 !storage/uploads/.gitkeep
 !storage/pdfs/.gitkeep
 

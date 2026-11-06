@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pilar-estudiante-shell-v1';
+const CACHE_NAME = 'pilar-estudiante-shell-v2';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -31,7 +31,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
-  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/')) {
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/') || requestUrl.pathname.startsWith('/storage/')) {
     return;
   }
 

@@ -23,7 +23,7 @@ Backend:
   - Rate limiting integrado
 
 IA:
-  - Google Gemini API (gemini-1.5-flash)
+  - Google Gemini API (gemini-flash-latest)
   - Fallbacks locales cuando API no está disponible
 
 Desktop:
@@ -159,9 +159,9 @@ pilar-estudiante/
 
 | Variable | Ejemplo | Requerido | Notas |
 |----------|---------|-----------|-------|
-| `GEMINI_API_KEY` | `AQ.Ab8RN6...` | ✅ Sí | Clave de Google Gemini |
-| `GEMINI_MODEL` | `gemini-1.5-flash` | ✅ Sí | Modelo de IA |
-| `GEMINI_TRANSCRIPTION_MODEL` | `gemini-1.5-flash` | ✅ Sí | Modelo para audio |
+| `GEMINI_API_KEY` | configurada localmente | ✅ Sí | Clave de Google Gemini |
+| `GEMINI_MODEL` | `gemini-flash-latest` | ✅ Sí | Modelo de IA |
+| `GEMINI_TRANSCRIPTION_MODEL` | `gemini-flash-latest` | ✅ Sí | Modelo para audio |
 | `NODE_ENV` | `production` | ❌ No | Por defecto: `development` |
 | `PORT` | `3000` | ❌ No | Por defecto: `3000` |
 | `HOST` | `127.0.0.1` | ❌ No | Por defecto: `127.0.0.1` |
@@ -323,4 +323,4 @@ PORT=3010 npm start
 ---
 
 *Documento técnico: 2026-09-01*  
-*PILAR v1.0.0 - Production Ready*
+*PILAR v1.0.0 - Documento histórico; no implica certificación de producción.*

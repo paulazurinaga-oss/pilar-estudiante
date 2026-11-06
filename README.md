@@ -2,7 +2,7 @@
 
 **Aplicación web y desktop inteligente para estudio con IA**
 
-[![Status](https://img.shields.io/badge/status-production%20ready-brightgreen)]()
+[![Status](https://img.shields.io/badge/status-pre--release-orange)]()
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
 [![License](https://img.shields.io/badge/license-ISC-green)]()
 
@@ -14,21 +14,16 @@ PILAR es una plataforma de estudio inteligente que integra:
 - 📝 **Asistente IA** con Google Gemini
 - 🎵 **Transcripción de audio** automática
 - 📂 **Gestión de recursos** (apuntes, PDFs, audios)
-- 💬 **Chat académico** con fallbacks inteligentes
+- 💬 **Chat académico** con manejo transparente de fallos
 - 🖥️ **Versión web** (PWA) y **Desktop** (Electron)
 
-Disponible en línea: **https://pilar-estudiante.onrender.com**
+El despliegue público y la venta no están habilitados hasta configurar secretos, revisar la cuenta de Render, integrar pagos/licencias y completar la validación final de producción.
 
 ---
 
 ## 🚀 Empezar rápido
 
-### Opción 1: Usar en línea (Recomendado)
-1. Abre: https://pilar-estudiante.onrender.com
-2. Ingresa tu nombre y correo
-3. ¡Comienza a estudiar! 
-
-### Opción 2: Instalar localmente
+### Ejecutar en desarrollo
 ```bash
 # Clonar repositorio
 git clone https://github.com/paula27081974/pilar-estudiante.git
@@ -51,8 +46,8 @@ npm run desktop
 ### 🧠 Asistente IA
 - Responde preguntas académicas
 - Crea resúmenes, mapas conceptuales, fichas
-- Fallback local cuando API no está disponible
-- Modelo: Gemini 1.5 Flash
+- Errores externos comunicados claramente, sin fabricar contenido como respuesta IA
+- Modelos configurables por variables de entorno
 
 ### 🎵 Transcriptor de Audio
 - Convierte audios a texto automáticamente
@@ -65,7 +60,7 @@ npm run desktop
 - Descarga y gestión de archivos
 
 ### 📱 Multiplataforma
-- **Web:** PWA funciona offline
+- **Web:** PWA cachea la interfaz estática; los datos privados requieren conexión
 - **Desktop:** Electron con almacenamiento persistente
 - **Mobile:** Compatible con navegadores
 
@@ -74,6 +69,8 @@ npm run desktop
 - Rate limiting contra abuso
 - Headers HTTP seguros
 - Validación de entrada
+- Registro con invitación en producción, contraseñas derivadas con scrypt y sesiones HttpOnly
+- Almacenamiento separado por cuenta
 
 ---
 
@@ -90,8 +87,14 @@ npm run desktop
 - Gestión de archivos local
 
 **IA:**
-- Google Gemini API (gemini-1.5-flash)
-- Fallbacks inteligentes
+- Google Gemini API (gemini-flash-latest)
+- Reintentos limitados para fallos temporales
+
+### Estado comercial
+
+La prueba de 7 días bloquea IA al vencer. La web tiene Checkout Pro de compra única, apagado hasta configurar credenciales, precio y HTTPS; el escritorio acepta licencias firmadas ligadas al correo y usa la clave Gemini propia del comprador. No hay facturación, recuperación/verificación de correo ni soporte comercial integrados.
+
+Los borradores de [PRIVACIDAD.md](PRIVACIDAD.md) y [CONDICIONES-DE-USO.md](CONDICIONES-DE-USO.md) requieren completar los datos del operador, contactos, condiciones económicas y revisión legal local. Consulta [PRELANZAMIENTO-COMERCIAL.md](PRELANZAMIENTO-COMERCIAL.md) para la lista completa de bloqueantes.
 
 **Deployment:**
 - Docker (opcional)
@@ -135,7 +138,7 @@ Ver documentación completa en [DOCUMENTACION-TECNICA.md](DOCUMENTACION-TECNICA.
 ### Variables de Entorno
 ```env
 GEMINI_API_KEY=tu_api_key_aqui
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-flash-latest
 NODE_ENV=production
 PORT=3000
 ```

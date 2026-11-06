@@ -1,23 +1,82 @@
 const { apiConfig } = require('./appConfig');
 
-async function geminiRequest({ model, parts }) {
+function retryDelayMs(response, attempt) {
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    const retryAt = Number.isFinite(seconds) ? Date.now() + seconds * 1000 : Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.max(0, Math.min(retryAt - Date.now(), 60_000));
+  }
+
+  return Math.min(1000 * (2 ** attempt), 8000);
+}
+
+function waitForRetry(delayMs, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason || new Error('Solicitud cancelada.'));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, delayMs);
+    const abort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+      reject(signal.reason || new Error('Solicitud cancelada.'));
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+}
+
+async function geminiRequest({ model, parts, signal, generationConfig }) {
   if (!apiConfig.gemini.apiKey) {
     throw new Error('GEMINI_API_KEY no está configurada.');
   }
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiConfig.gemini.apiKey)}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
-  });
+  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(90_000)])
+    : AbortSignal.timeout(90_000);
+  let lastError;
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: requestSignal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          ...(generationConfig ? { generationConfig } : {}),
+        }),
+      });
+    } catch (error) {
+      if (requestSignal.aborted || attempt === 2) throw error;
+      lastError = error;
+      await waitForRetry(Math.min(1000 * (2 ** attempt), 8000), requestSignal);
+      continue;
+    }
+
+    if (response.ok) {
+      return response.json();
+    }
+
     const errText = await response.text();
-    throw new Error(`Gemini request failed: ${response.status} ${errText}`);
+    lastError = new Error(`Gemini request failed: ${response.status} ${errText}`);
+    lastError.status = response.status;
+    if (!retryableStatuses.has(response.status) || attempt === 2) {
+      throw lastError;
+    }
+
+    await waitForRetry(retryDelayMs(response, attempt), signal);
   }
 
-  return response.json();
+  throw lastError || new Error('Gemini no respondió.');
 }
 
 function extractGeminiText(data) {
@@ -25,6 +84,24 @@ function extractGeminiText(data) {
     ?.map((part) => part.text || '')
     .join('')
     .trim();
+}
+
+function normalizeMermaid(content) {
+  const fencedMatch = String(content || '').match(/```(?:mermaid)?\s*([\s\S]*?)```/i);
+  const mermaid = (fencedMatch ? fencedMatch[1] : String(content || '')).trim();
+  if (!/^(flowchart|graph)\s+(TB|TD|BT|LR|RL)\b/i.test(mermaid)) {
+    throw new Error('Gemini no devolvió un diagrama Mermaid válido.');
+  }
+  if (mermaid.length > 12_000 || /<script|javascript:|onerror\s*=|onclick\s*=/i.test(mermaid)) {
+    throw new Error('El diagrama visual devuelto no cumple los límites de seguridad.');
+  }
+  return mermaid;
+}
+
+function isQuotaError(error) {
+  const message = error?.message || '';
+  return error?.status === 429 || error?.code === 429 || error?.status === 'RESOURCE_EXHAUSTED'
+    || /429|RESOURCE_EXHAUSTED|quota/i.test(message);
 }
 
 function buildAiFallback(prompt, context = '') {
@@ -77,13 +154,29 @@ Se puede trabajar de forma ordenada con:
 - material listo para estudiar.`;
 }
 
-async function generateAssistantReply(prompt, context = '') {
+async function generateAssistantReply(prompt, context = '', attachments = []) {
   try {
+    const parts = [{
+      text: `Eres el asistente académico de PILAR del estudiante. Responde con precisión, claridad y estructura útil para estudiar.\n${context ? `${context}\n` : ''}${prompt}`,
+    }];
+    let totalBytes = 0;
+    for (const attachment of attachments) {
+      const mimeType = String(attachment.mimeType || '');
+      const data = String(attachment.data || '');
+      const buffer = Buffer.from(data, 'base64');
+      totalBytes += buffer.length;
+      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) {
+        throw new Error(`Tipo de archivo no admitido para análisis: ${mimeType || 'desconocido'}.`);
+      }
+      if (!buffer.length || totalBytes > 12 * 1024 * 1024) {
+        throw new Error('Los archivos adjuntos superan el límite conjunto de 12 MB o están vacíos.');
+      }
+      parts.push({ inline_data: { mime_type: mimeType, data: buffer.toString('base64') } });
+    }
+
     const data = await geminiRequest({
       model: apiConfig.gemini.model,
-      parts: [{
-        text: `Eres el asistente académico de PILAR del estudiante. Responde con precisión, claridad y estructura útil para estudiar.\n${context ? `${context}\n` : ''}${prompt}`,
-      }],
+      parts,
     });
 
     const content = extractGeminiText(data);
@@ -93,19 +186,75 @@ async function generateAssistantReply(prompt, context = '') {
       fallback: false,
     };
   } catch (error) {
+    const errorDetail = error?.message || 'Error desconocido';
+    const quotaExceeded = isQuotaError(error);
+    const userMessage = quotaExceeded
+      ? 'Límite de cuota gratuita de Gemini alcanzado. Por favor, aguarda unos minutos.'
+      : `No se obtuvo una respuesta de IA. Gemini puede estar temporalmente no disponible; revisa el modelo y vuelve a intentarlo. Detalle: ${errorDetail}`;
     return {
-      content: `${buildAiFallback(prompt, context)}\n\nNota: el servicio de IA quedó temporalmente fuera de servicio.`,
+      content: userMessage,
       fallback: true,
-      error: error.message,
+      error: errorDetail,
+      userMessage,
+      quotaExceeded,
     };
   }
 }
 
-async function transcribeAudio({ fileName, buffer, mimeType = 'audio/mpeg' }) {
+async function generateImage(prompt) {
+  if (!apiConfig.gemini.apiKey) throw new Error('GEMINI_API_KEY no está configurada.');
+  const data = await geminiRequest({
+    model: apiConfig.gemini.imageModel,
+    parts: [{ text: `Genera una imagen educativa basada en esta descripción. No agregues marcas de agua: ${String(prompt || '').slice(0, 4000)}` }],
+    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+  });
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const image = parts.find((part) => part.inlineData?.data || part.inline_data?.data);
+  if (!image) {
+    const message = extractGeminiText(data);
+    throw new Error(message || 'Gemini no devolvió una imagen.');
+  }
+  const mimeType = image.inlineData?.mimeType || image.inline_data?.mime_type || 'image/png';
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) {
+    throw new Error('Gemini devolvió un formato de imagen no compatible.');
+  }
+  return {
+    mimeType,
+    data: image.inlineData?.data || image.inline_data?.data,
+  };
+}
+
+async function generateInfographic(prompt) {
+  if (!apiConfig.gemini.apiKey) throw new Error('GEMINI_API_KEY no está configurada.');
+  const data = await geminiRequest({
+    model: apiConfig.gemini.model,
+    parts: [{
+      text: `Eres un diseñador de mapas mentales e infografías educativas. Convierte la solicitud en un único diagrama Mermaid claro y legible.
+Reglas obligatorias:
+- Devuelve únicamente código Mermaid, sin explicaciones ni bloques Markdown.
+- Usa exactamente flowchart TD como primera línea.
+- Usa entre 5 y 14 nodos, etiquetas breves en español y conexiones útiles.
+- No uses HTML, SVG, scripts, URLs, estilos externos ni caracteres de control.
+
+Solicitud del usuario:
+${String(prompt || '').slice(0, 4000)}`,
+    }],
+  });
+  const mermaid = normalizeMermaid(extractGeminiText(data));
+  return {
+    success: true,
+    format: 'mermaid',
+    mermaid,
+    title: 'Mapa mental e infografía visual',
+  };
+}
+
+async function transcribeAudio({ fileName, buffer, mimeType = 'audio/mpeg', signal }) {
   try {
     const fileBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer, 'base64');
     const data = await geminiRequest({
       model: apiConfig.gemini.transcriptionModel,
+      signal,
       parts: [
         { text: 'Transcribe literalmente este audio en español. Conserva el orden, separa hablantes si es posible y no inventes contenido.' },
         { inline_data: { mime_type: mimeType, data: fileBuffer.toString('base64') } },
@@ -119,12 +268,27 @@ async function transcribeAudio({ fileName, buffer, mimeType = 'audio/mpeg' }) {
       text,
     };
   } catch (error) {
-    const quotaExceeded = error.message.includes(' 429 ') || error.message.includes('RESOURCE_EXHAUSTED');
+    const errorMessage = error?.message || 'Error desconocido';
+    const quotaExceeded = /429|RESOURCE_EXHAUSTED|quota/i.test(errorMessage);
+    const transientServiceError = /\b(500|502|503|504)\b|UNAVAILABLE|INTERNAL|DEADLINE_EXCEEDED|fetch failed|network|timed out|timeout/i.test(errorMessage);
+    const authError = /401|403|INVALID_API_KEY|FORBIDDEN|UNAUTHENTICATED|unauthorized|not authorized/i.test(errorMessage);
+    const notFound = /404|NOT_FOUND|model.*not found|not found/i.test(errorMessage);
+    const userHelp = authError
+      ? 'La clave de Gemini no es válida o no tiene permiso para este modelo.'
+      : notFound
+        ? 'El modelo de Gemini no existe o no está disponible para esta cuenta.'
+        : transientServiceError
+          ? 'Gemini está temporalmente saturado o no disponible. La solicitud se reintentó; espera un momento y vuelve a intentarlo.'
+          : quotaExceeded
+          ? 'La cuota de Gemini está agotada o está limitada por el plan actual.'
+          : 'El servicio de Gemini respondió con un error de procesamiento.';
     return {
       fallback: true,
-      text: `No se pudo transcribir ${fileName} con Gemini.\nError real de servicio: ${error.message}`,
-      error: error.message,
+      text: `No se pudo transcribir ${fileName}.\n${userHelp}\nDetalle técnico: ${errorMessage}`,
+      error: errorMessage,
       quotaExceeded,
+      transientServiceError,
+      userHelp,
     };
   }
 }
@@ -132,7 +296,7 @@ async function transcribeAudio({ fileName, buffer, mimeType = 'audio/mpeg' }) {
 async function textToSpeech({ text, voice = 'alloy' }) {
   return {
     fallback: true,
-    message: 'Gemini se usa para IA y transcripción. El texto a voz continúa usando el navegador.',
+    message: 'La lectura en voz alta usa las voces disponibles en el navegador.',
     voice,
     text,
   };
@@ -140,6 +304,8 @@ async function textToSpeech({ text, voice = 'alloy' }) {
 
 module.exports = {
   generateAssistantReply,
+  generateImage,
+  generateInfographic,
   transcribeAudio,
   textToSpeech,
   buildAiFallback,

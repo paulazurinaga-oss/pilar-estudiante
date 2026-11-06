@@ -1,3 +1,7 @@
+# Aviso de vigencia
+
+Este mapa y varios documentos enlazados se crearon antes de la auditoría de lanzamiento. No usar sus promesas antiguas de “publicar en 25 minutos” ni “lista para vender”; seguir `INICIO-RAPIDO.md`, `PRIVACIDAD.md` y `CONDICIONES-DE-USO.md` actualizados.
+
 # 🗺️ MAPA DE DOCUMENTACIÓN - PILAR
 
 **Tu guía rápida para encontrar lo que necesitas**
@@ -10,11 +14,11 @@
 📄 [`00-RESUMEN-PAULA-LEE-ESTO-PRIMERO.md`](00-RESUMEN-PAULA-LEE-ESTO-PRIMERO.md)
 - ✅ Qué se completó
 - ✅ 8 commits realizados
-- ✅ 3 pasos próximos (25 min)
+- Información histórica de publicación: no seguir sin revisar `PRELANZAMIENTO-COMERCIAL.md`.
 
 ### 2️⃣ **LUEGO, SIGUE ESTO (3 minutos)**
 📄 [`INICIO-RAPIDO.md`](INICIO-RAPIDO.md)
-- ✅ 3 pasos simples para publicar
+- Guía actual de pre-lanzamiento y decisiones pendientes
 - ✅ Comandos copiar-pega
 - ✅ ~25 minutos total
 

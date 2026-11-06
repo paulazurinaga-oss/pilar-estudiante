@@ -3,20 +3,39 @@ services:
     name: pilar-del-estudiante
     runtime: node
     plan: starter
+    autoDeploy: true
     buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 3000
       - key: HOST
         value: 0.0.0.0
+      - key: PILAR_DATA_PATH
+        value: /data/storage
       - key: GEMINI_API_KEY
         sync: false
+      - key: PILAR_REGISTRATION_CODES
+        sync: false
+      - key: PILAR_LICENSE_CODES
+        sync: false
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false
+      - key: PILAR_WEB_PRICE_ARS
+        sync: false
+      - key: PILAR_PUBLIC_URL
+        sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.6-flash
+        value: gemini-flash-latest
       - key: GEMINI_TRANSCRIPTION_MODEL
-        value: gemini-3.6-flash
+        value: gemini-flash-latest
+      - key: GEMINI_IMAGE_MODEL
+        value: gemini-2.5-flash-image
     disk:
       name: pilar-storage
       mountPath: /data/storage

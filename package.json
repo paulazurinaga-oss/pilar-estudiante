@@ -7,8 +7,13 @@
     "start": "node server.js",
     "serve": "node server.js",
     "desktop": "electron .",
-    "test": "node -e \"console.log('No automated tests configured yet.')\"",
-    "package:win": "npx --yes node@22 node_modules/electron-packager/bin/electron-packager.js . PILAR --platform=win32 --arch=x64 --out=dist --overwrite --icon=icon.ico --ignore=^/storage --ignore=^/dist-pilar- --ignore=^/\\.env$"
+    "test": "node --test",
+    "license:init": "node tools/init-license-issuer.js",
+    "license:issue": "node tools/generate-signed-license.js",
+    "build": "electron-builder --win",
+    "electron:build": "npm run build",
+    "package:win": "npm run build",
+    "package:portable": "npx --yes node@22 node_modules/electron-packager/bin/electron-packager.js . PILAR --platform=win32 --arch=x64 --out=dist-portable --overwrite --asar --extra-resource=node_modules/ffmpeg-static/ffmpeg.exe --icon=icon.ico --ignore=^/storage --ignore=^/dist-pilar- --ignore=^/\\.env$"
   },
   "keywords": [
     "study",
@@ -21,10 +26,52 @@
   "type": "commonjs",
   "devDependencies": {
     "electron": "^31.7.4",
+    "electron-builder": "^24.13.3",
     "electron-packager": "^17.0.0"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
     "ffmpeg-static": "^5.3.0"
+  },
+  "build": {
+    "appId": "com.pilar.delestudiante",
+    "productName": "PILAR del estudiante",
+    "directories": {
+      "output": "dist-installer"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!dist-installer/**",
+      "!dist-installer-verified/**",
+      "!dist-installer-sale/**",
+      "!dist-portable/**",
+      "!storage/**",
+      "!**/.env",
+      "!**/.env.*",
+      "!**/*.backup",
+      "!**/test/**",
+      "!**/tools/**",
+      "PRIVACIDAD.md",
+      "CONDICIONES-DE-USO.md",
+      "PRELANZAMIENTO-COMERCIAL.md"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PILAR del estudiante"
+    }
   }
 }

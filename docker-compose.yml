@@ -10,7 +10,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      AURAPILAR_DATA_PATH: /data/storage
+      PILAR_DATA_PATH: /data/storage
     volumes:
       - pilar-data:/data/storage
 
