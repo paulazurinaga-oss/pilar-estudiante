@@ -53,6 +53,24 @@ test('retries temporary network errors instead of failing on the first disconnec
   assert.equal(result.fallback, false);
 });
 
+test('limits each Gemini request to 60 seconds', async () => {
+  const originalTimeout = AbortSignal.timeout;
+  const timeoutValues = [];
+  AbortSignal.timeout = (milliseconds) => {
+    timeoutValues.push(milliseconds);
+    return originalTimeout.call(AbortSignal, milliseconds);
+  };
+  global.fetch = async () => geminiSuccess('Respuesta dentro del límite');
+
+  try {
+    const result = await generateAssistantReply('Explica el tema');
+    assert.equal(result.fallback, false);
+    assert.deepEqual(timeoutValues, [60_000]);
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
+});
+
 test('returns generated image bytes from Gemini', async () => {
   let requestBody;
   global.fetch = async (_url, options) => {

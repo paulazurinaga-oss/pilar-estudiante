@@ -1,5 +1,7 @@
 const { apiConfig } = require('./appConfig');
 
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+
 function retryDelayMs(response, attempt) {
   const retryAfter = response.headers.get('retry-after');
   if (retryAfter) {
@@ -39,8 +41,8 @@ async function geminiRequest({ model, parts, signal, generationConfig }) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiConfig.gemini.apiKey)}`;
   const retryableStatuses = new Set([429, 500, 502, 503, 504]);
   const requestSignal = signal
-    ? AbortSignal.any([signal, AbortSignal.timeout(90_000)])
-    : AbortSignal.timeout(90_000);
+    ? AbortSignal.any([signal, AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS)])
+    : AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS);
   let lastError;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
