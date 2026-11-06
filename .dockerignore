@@ -6,4 +6,7 @@ npm-debug.log
 dist
 dist-*
 storage
+test
+tools
+coverage
 .git

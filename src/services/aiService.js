@@ -1,6 +1,17 @@
 const { apiConfig } = require('./appConfig');
 
-const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
+const DEFAULT_GEMINI_REQUEST_TIMEOUT_MS = 10 * 60_000;
+const MAX_GEMINI_REQUEST_TIMEOUT_MS = 15 * 60_000;
+const configuredGeminiTimeout = process.env.PILAR_GEMINI_TIMEOUT_MS;
+const GEMINI_REQUEST_TIMEOUT_MS = configuredGeminiTimeout === undefined || configuredGeminiTimeout.trim() === ''
+  ? DEFAULT_GEMINI_REQUEST_TIMEOUT_MS
+  : Number(configuredGeminiTimeout);
+
+if (!Number.isSafeInteger(GEMINI_REQUEST_TIMEOUT_MS)
+  || GEMINI_REQUEST_TIMEOUT_MS < 1_000
+  || GEMINI_REQUEST_TIMEOUT_MS > MAX_GEMINI_REQUEST_TIMEOUT_MS) {
+  throw new Error(`PILAR_GEMINI_TIMEOUT_MS debe ser un entero entre 1000 y ${MAX_GEMINI_REQUEST_TIMEOUT_MS}.`);
+}
 
 function retryDelayMs(response, attempt) {
   const retryAfter = response.headers.get('retry-after');

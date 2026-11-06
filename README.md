@@ -17,7 +17,7 @@ PILAR es una plataforma de estudio inteligente que integra:
 - 💬 **Chat académico** con manejo transparente de fallos
 - 🖥️ **Versión web** (PWA) y **Desktop** (Electron)
 
-El despliegue público y la venta no están habilitados hasta configurar secretos, revisar la cuenta de Render, integrar pagos/licencias y completar la validación final de producción.
+El despliegue público y la venta no están habilitados hasta configurar secretos, aprovisionar una VM Always Free, revisar sus límites de disponibilidad y completar la validación final de producción.
 
 ---
 
@@ -97,8 +97,7 @@ La prueba de 7 días bloquea IA al vencer. La web tiene Checkout Pro de compra �
 Los borradores de [PRIVACIDAD.md](PRIVACIDAD.md) y [CONDICIONES-DE-USO.md](CONDICIONES-DE-USO.md) requieren completar los datos del operador, contactos, condiciones económicas y revisión legal local. Consulta [PRELANZAMIENTO-COMERCIAL.md](PRELANZAMIENTO-COMERCIAL.md) para la lista completa de bloqueantes.
 
 **Deployment:**
-- Docker (opcional)
-- Render (producción)
+- Docker en una VM Oracle Cloud Always Free (autogestionado)
 
 ---
 
@@ -216,6 +215,8 @@ docker run -p 3000:3000 \
 docker compose up -d --build
 ```
 
+Para publicar con HTTPS, Caddy y persistencia en una VM Always Free, sigue [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md). El alojamiento gratuito no incluye una garantía de disponibilidad; OCI puede reclamar instancias Always Free inactivas.
+
 ---
 
 ## 📖 Documentación
@@ -223,7 +224,7 @@ docker compose up -d --build
 | Archivo | Descripción |
 |---------|-------------|
 | [INICIO-RAPIDO.md](INICIO-RAPIDO.md) | 3 pasos para publicar |
-| [GUIA-PUBLICAR-GITHUB-RENDER.md](GUIA-PUBLICAR-GITHUB-RENDER.md) | Publicar en GitHub y Render |
+| [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md) | Despliegue Docker en Oracle Cloud Always Free |
 | [DOCUMENTACION-TECNICA.md](DOCUMENTACION-TECNICA.md) | API, arquitectura, troubleshooting |
 | [INFORME-TESTING-PILAR.md](INFORME-TESTING-PILAR.md) | Testing completo |
 | [GUIA-EMPAQUETADO.md](GUIA-EMPAQUETADO.md) | Cómo empaquetar app |
@@ -283,10 +284,9 @@ Este proyecto está bajo la licencia ISC.
 
 ## 🔗 Links útiles
 
-- **App en línea:** https://pilar-estudiante.onrender.com
 - **Repositorio:** https://github.com/paula27081974/pilar-estudiante
 - **Gemini API:** https://ai.google.dev
-- **Render:** https://render.com
+- **Oracle Cloud Free Tier:** https://www.oracle.com/cloud/free/
 - **Electron:** https://www.electronjs.org
 
 ---

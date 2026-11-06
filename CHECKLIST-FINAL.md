@@ -1,6 +1,6 @@
 # Estado actualizado: pre-lanzamiento
 
-Los checks históricos de este documento no certifican el estado actual de producción. La app tiene pruebas de integración locales para autenticación y aislamiento; no existe aún validación de pagos, despliegue en Render ni transcripción/generación real con cuotas comerciales. Seguir [INICIO-RAPIDO.md](INICIO-RAPIDO.md) para los pendientes actuales.
+Los checks históricos de este documento no certifican el estado actual de producción. La app tiene pruebas de integración locales para autenticación y aislamiento; no existe aún validación de pagos, despliegue en Oracle Cloud ni transcripción/generación real con cuotas comerciales. Seguir [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md) y [PRELANZAMIENTO-COMERCIAL.md](PRELANZAMIENTO-COMERCIAL.md) para los pendientes actuales.
 
 # ✅ CHECKLIST FINAL - PILAR DEL ESTUDIANTE
 
@@ -70,7 +70,7 @@ Los checks históricos de este documento no certifican el estado actual de produ
 |---------|-------------|--------|
 | `INFORME-TESTING-PILAR.md` | Informe completo de testing | ✅ Creado |
 | `RESUMEN-PAULA.md` | Resumen ejecutivo | ✅ Creado |
-| `GUIA-PUBLICAR-GITHUB-RENDER.md` | Paso a paso GitHub + Render | ✅ Creado |
+| `GUIA-DESPLIEGUE-OCI.md` | Despliegue Docker en Oracle Cloud Always Free | ✅ Creado |
 | `DOCUMENTACION-TECNICA.md` | API, arquitectura, troubleshooting | ✅ Creado |
 | `GUIA-EMPAQUETADO.md` | Guía original (actualizada) | ✅ Existía |
 
@@ -122,26 +122,24 @@ git branch -M main
 git push -u origin main
 ```
 
-Guía completa en: `GUIA-PUBLICAR-GITHUB-RENDER.md`
+Guía completa en: `GUIA-DESPLIEGUE-OCI.md`
 
-#### 3. Publicar en Render (10 minutos)
-1. Login en render.com
-2. Conectar GitHub
-3. Seleccionar repositorio
-4. Configurar env: `GEMINI_API_KEY=...`
-5. Deploy
+#### 3. Publicar en Oracle Cloud
+1. Aprovisionar una VM marcada como Always Free.
+2. Configurar DNS, HTTPS, Docker y secretos siguiendo `GUIA-DESPLIEGUE-OCI.md`.
+3. Mantener una sola instancia y respaldos cifrados.
 
-Guía paso a paso en: `GUIA-PUBLICAR-GITHUB-RENDER.md`
+Guía paso a paso en: `GUIA-DESPLIEGUE-OCI.md`
 
-#### 4. Verificar en Render
-- [ ] Abre: https://pilar-estudiante.onrender.com
+#### 4. Verificar el despliegue
+- [ ] Abre el dominio HTTPS configurado
 - [ ] Verifica: IA respondiendo
 - [ ] Prueba: Chat con prompt
 
 ### CORTO PLAZO (Esta semana)
 
 - [ ] Dominio personalizado (opcional)
-- [ ] Tests manuales en Render
+- [ ] Tests manuales en la VM
 - [ ] Compartir link con usuarios
 - [ ] Recopilar feedback
 
@@ -159,7 +157,7 @@ Guía paso a paso en: `GUIA-PUBLICAR-GITHUB-RENDER.md`
 ### Protegido
 - [x] `.env` con `GEMINI_API_KEY` NO está en GitHub
 - [x] `.env.example` como plantilla sí está
-- [x] Render tiene su propia copia de `GEMINI_API_KEY`
+- [ ] Los secretos están configurados solo en el `.env` de la VM
 - [x] Todas las claves sensibles ignoradas
 
 ### Verificación
@@ -199,16 +197,16 @@ ls -la | grep ".env"
    - ✅ Ya está protegido por `.gitignore`
    - ✅ Verifica siempre antes de hacer push
 
-2. **Claves en Render**
+2. **Claves en el servidor**
    - ✅ Configura `GEMINI_API_KEY` en variables de entorno
    - ✅ Nunca en el código
 
 3. **Servidor debe estar corriendo**
    - Cuando desarrolles: `npm start` en una terminal
-   - Cuando depliegues: Render lo maneja automáticamente
+   - Cuando despliegues: limita permisos del archivo `.env` en la VM
 
 4. **Updates automáticos**
-   - Cada `git push` → Render redeploy automático
+   - Actualiza la VM manualmente siguiendo la guía de despliegue
    - Espera 3-5 minutos para que compile
 
 ---
@@ -228,13 +226,13 @@ ls -la | grep ".env"
 ### Documentación Interna
 - [x] INFORME-TESTING-PILAR.md
 - [x] RESUMEN-PAULA.md
-- [x] GUIA-PUBLICAR-GITHUB-RENDER.md
+- [x] GUIA-DESPLIEGUE-OCI.md
 - [x] DOCUMENTACION-TECNICA.md
 - [x] GUIA-EMPAQUETADO.md
 
 ### Recursos Externos
 - GitHub: https://github.com/paula27081974
-- Render: https://render.com
+- Oracle Cloud Free Tier: https://www.oracle.com/cloud/free/
 - Gemini API: https://ai.google.dev
 
 ---
@@ -257,6 +255,6 @@ Los tests manuales pasaron.
 *Por: Asistente de Copilot*  
 *Para: Paula (paula27081974)*
 
-**Siguiente paso:** Lee `RESUMEN-PAULA.md` y sigue la `GUIA-PUBLICAR-GITHUB-RENDER.md`
+**Siguiente paso:** Lee `RESUMEN-PAULA.md` y sigue la `GUIA-DESPLIEGUE-OCI.md`
 
 **¡A lograr este éxito! 🚀**

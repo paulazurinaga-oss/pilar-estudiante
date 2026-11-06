@@ -59,7 +59,7 @@ test('retries temporary network errors instead of failing on the first disconnec
   assert.equal(result.fallback, false);
 });
 
-test('limits each Gemini request to 60 seconds', async () => {
+test('allows up to ten minutes for a Gemini request by default', async () => {
   const originalTimeout = AbortSignal.timeout;
   const timeoutValues = [];
   AbortSignal.timeout = (milliseconds) => {
@@ -71,7 +71,7 @@ test('limits each Gemini request to 60 seconds', async () => {
   try {
     const result = await generateAssistantReply('Explica el tema');
     assert.equal(result.fallback, false);
-    assert.deepEqual(timeoutValues, [60_000]);
+    assert.deepEqual(timeoutValues, [10 * 60_000]);
   } finally {
     AbortSignal.timeout = originalTimeout;
   }

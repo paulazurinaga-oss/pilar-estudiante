@@ -142,7 +142,8 @@ pilar-estudiante/
 ├── package.json
 ├── Dockerfile              ← Para Docker
 ├── docker-compose.yml      ← Orquestación Docker
-├── render.yaml             ← Config para Render
+├── docker-compose.production.yml ← Despliegue con Caddy y persistencia
+├── Caddyfile               ← HTTPS y streaming sin búfer
 ├── manifest.json           ← PWA manifest
 ├── .env.example            ← Template de env
 ├── .gitignore              ← Ignora claves y builds
@@ -165,6 +166,7 @@ pilar-estudiante/
 | `NODE_ENV` | `production` | ❌ No | Por defecto: `development` |
 | `PORT` | `3000` | ❌ No | Por defecto: `3000` |
 | `HOST` | `127.0.0.1` | ❌ No | Por defecto: `127.0.0.1` |
+| `PILAR_GEMINI_TIMEOUT_MS` | `600000` | ❌ No | De 1000 a 900000 ms; por defecto 10 minutos |
 
 ### Instalación de Dependencias
 
@@ -205,6 +207,9 @@ docker run -p 3000:3000 -e GEMINI_API_KEY=... pilar
 
 # Con Docker Compose
 docker compose up -d --build
+
+# Publicación web en VM con HTTPS y persistencia
+docker compose --env-file .env -f docker-compose.production.yml up -d --build
 ```
 
 ---
@@ -281,7 +286,7 @@ X-Content-Type-Options: nosniff
 ### "GEMINI_API_KEY not configured"
 - Verifica `.env` existe
 - Verifica clave no está vacía
-- En Render: Revisa Environment variables
+- En el servidor: revisa los secretos de `.env` sin copiarlos a logs o repositorios
 
 ### "Cannot find module 'electron'"
 ```bash
@@ -302,7 +307,7 @@ PORT=3010 npm start
 ## 📞 SOPORTE
 
 - **Documentación:** GUIA-EMPAQUETADO.md, INFORME-TESTING-PILAR.md
-- **Deployment:** GUIA-PUBLICAR-GITHUB-RENDER.md
+- **Deployment:** GUIA-DESPLIEGUE-OCI.md
 - **GitHub:** https://github.com/paula27081974/pilar-estudiante
 
 ---
@@ -314,7 +319,7 @@ PORT=3010 npm start
 - [x] Rate limiting activo
 - [x] Manejo de errores completo
 - [x] Fallbacks de IA implementados
-- [x] HTTPS (en Render)
+- [x] HTTPS automático mediante Caddy en la configuración de producción
 - [x] Logo correcto (P de PILAR)
 - [x] Modelo Gemini válido
 - [x] Tests manuales completados

@@ -12,7 +12,7 @@ PILAR puede tratar nombre, correo electrónico, hash de contraseña, datos de se
 
 ## Finalidades y proveedores
 
-Los datos de cuenta se usan para autenticar, administrar la prueba y las licencias, proteger el servicio y separar los archivos por cuenta. Al pedir una respuesta, transcripción o imagen, el contenido necesario se envía a Google Gemini usando la clave configurada por el operador. Se aplican además las condiciones y políticas vigentes de Google. El hosting y el disco persistente son proporcionados por Render cuando se despliega allí.
+Los datos de cuenta se usan para autenticar, administrar la prueba y las licencias, proteger el servicio y separar los archivos por cuenta. Al pedir una respuesta, transcripción o imagen, el contenido necesario se envía a Google Gemini usando la clave configurada por el operador. Se aplican además las condiciones y políticas vigentes de Google. En el despliegue autogestionado descrito en `GUIA-DESPLIEGUE-OCI.md`, Oracle Cloud Infrastructure proporciona la VM y el disco; el operador administra el sistema, los respaldos y la disponibilidad. Completar la región y los proveedores efectivamente utilizados antes de publicar este aviso.
 
 Si se habilita la compra web, PILAR envía a Mercado Pago el correo y los datos mínimos del pedido para crear el checkout. No recibe ni almacena tarjetas. Guarda el ID del pedido/pago, estado, importe y moneda para activar la licencia tras confirmar el pago.
 

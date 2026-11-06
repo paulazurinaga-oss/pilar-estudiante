@@ -67,7 +67,7 @@ docker build -t pilar-estudiante .
 docker run --rm -p 3000:3000 -e GEMINI_API_KEY=TU_CLAVE pilar-estudiante
 ```
 
-Con Docker Compose, el almacenamiento queda en un volumen persistente:
+Con Docker Compose para uso local, el almacenamiento queda en un volumen persistente:
 
 ```powershell
 docker compose up -d --build
@@ -75,6 +75,6 @@ docker compose up -d --build
 
 No subas `.env` a GitHub. En el hosting configura `GEMINI_API_KEY` como secreto y usa HTTPS delante del puerto `3000`.
 
-Para Render, revisa los cambios locales y publícalos deliberadamente en un repositorio privado. Crea un Blueprint usando `render.yaml` y configura los secretos `GEMINI_API_KEY`, `PILAR_REGISTRATION_CODES` y `PILAR_LICENSE_CODES`. El Blueprint incluye disco persistente. Genera invitaciones/licencias individuales con `node tools/generate-license-codes.js invite 10` y `node tools/generate-license-codes.js license 10`; guarda sus salidas fuera del repo.
+Para publicar en Oracle Cloud Always Free, sigue [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md). La guía prepara Docker Compose con almacenamiento persistente, HTTPS automático mediante Caddy y streaming sin búfer. Genera invitaciones/licencias individuales con `node tools/generate-license-codes.js invite 10` y `node tools/generate-license-codes.js license 10`; guarda sus salidas fuera del repo. OCI puede reclamar instancias inactivas y el nivel gratuito no garantiza disponibilidad.
 
 Antes de invitar usuarios, valida HTTPS, registro, sesión tras reinicio, aislamiento entre dos cuentas, eliminación de cuenta, salud del modelo, una transcripción real y una generación de imagen real. El backend usa almacenamiento JSON local y requiere una única instancia con disco persistente; no escalar horizontalmente sin migrar usuarios, sesiones, licencias y archivos a servicios compartidos/transaccionales.
