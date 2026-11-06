@@ -234,13 +234,11 @@ async function handleSendAction(action) {
     ? `${targetFile.name}. ${targetFile.type?.startsWith('audio/') ? 'Resume y analiza su contenido después de transcribirlo.' : 'Explica sus ideas principales y crea material de estudio.'}`
     : getActiveTextTarget();
   if (action === 'ai-summary') {
-    const output = document.getElementById('aiOutput');
     if (targetFile) {
       aiPrompt.value = targetText;
     }
-    output.textContent = 'Preparando respuesta...';
-    output.textContent = await requestAiResponse(targetText, 'La operación proviene desde el menú de envío central.', []);
     activateTab('asistente');
+    await requestAiResponse(targetText, 'La operación proviene desde el menú de envío central.', []);
     return;
   }
 
@@ -551,6 +549,9 @@ function buildAiResponse(prompt, context = '') {
 
 async function requestAiResponse(prompt, context = '', attachments = [], onText) {
   let content = '';
+  const output = document.getElementById('aiOutput');
+  output.textContent = '';
+  const appendText = onText || ((text) => { output.textContent += text; });
   try {
     const response = await fetch(`${API_BASE}/ai/chat`, {
       method: 'POST',
@@ -584,7 +585,7 @@ async function requestAiResponse(prompt, context = '', attachments = [], onText)
       const payload = JSON.parse(data);
       if (event === 'delta') {
         content += payload.text || '';
-        onText?.(payload.text || '');
+        appendText(payload.text || '');
       } else if (event === 'done') {
         completed = true;
       } else if (event === 'error') {
@@ -609,7 +610,7 @@ async function requestAiResponse(prompt, context = '', attachments = [], onText)
     const message = content
       ? `\n\nLa respuesta se interrumpió: ${error.message}`
       : `No se pudo obtener la respuesta. ${error.message}`;
-    onText?.(message);
+    appendText(message);
     return `${content}${message}`;
   }
 }
@@ -1449,17 +1450,15 @@ deleteTranscriptBtn.addEventListener('click', () => {
 const sendToAiBtn = document.getElementById('sendToAiBtn');
 sendToAiBtn.addEventListener('click', async () => {
   const prompt = transcriptOutput.value.trim() || 'Resúmeme este material.';
-  const output = document.getElementById('aiOutput');
-  output.textContent = await requestAiResponse(prompt, 'Se solicita trabajar desde un audio o transcripción de estudio.');
   activateTab('asistente');
+  await requestAiResponse(prompt, 'Se solicita trabajar desde un audio o transcripción de estudio.');
 });
 
 const generateMapBtn = document.getElementById('generateMapBtn');
 generateMapBtn.addEventListener('click', async () => {
-  const output = document.getElementById('aiOutput');
   const prompt = transcriptOutput.value.trim() || 'Tema principal del contenido';
-  output.textContent = await requestAiResponse(`mapa conceptual para ${prompt}`);
   activateTab('asistente');
+  await requestAiResponse(`mapa conceptual para ${prompt}`);
 });
 
 const generateImageBtn = document.getElementById('generateImageBtn');
