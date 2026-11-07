@@ -69,7 +69,7 @@ function cleanJoinedTranscription(parts) {
   return cleaned.join('\n\n');
 }
 
-function createJob({ userId, filePath, fileName, mimeType, chunkSeconds = DEFAULT_CHUNK_DURATION_SECONDS }) {
+function createJob({ id: requestedId, userId, filePath, fileName, mimeType, chunkSeconds = DEFAULT_CHUNK_DURATION_SECONDS }) {
   if (activeJobCount(userId) >= MAX_ACTIVE_JOBS_PER_USER || activeJobCount() >= MAX_ACTIVE_JOBS) {
     throw new Error('La cola de transcripción está llena. Espera a que terminen los trabajos activos.');
   }
@@ -79,7 +79,8 @@ function createJob({ userId, filePath, fileName, mimeType, chunkSeconds = DEFAUL
       jobs.delete(jobId);
     }
   }
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const id = requestedId || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  if (jobs.has(id)) throw new Error('El trabajo de transcripción ya está en ejecución.');
   const job = {
     id,
     userId,

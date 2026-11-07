@@ -37,6 +37,11 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
   const mockGemini = `
     global.fetch = async (url) => {
+      if (String(url).includes(':generateContent?key=')) {
+        return new Response(JSON.stringify({
+          candidates: [{ content: { parts: [{ text: 'flowchart TD\\n  A[Inicio] --> B[Concepto]' }] } }],
+        }), { headers: { 'content-type': 'application/json' } });
+      }
       if (!String(url).includes(':streamGenerateContent?alt=sse')) throw new Error('Fetch inesperado');
       const parts = [
         { candidates: [{ content: { parts: [{ text: 'Respuesta' }] } }] },
@@ -101,4 +106,47 @@ test('streams chat deltas from the authenticated endpoint as server-sent events'
   assert.match(streamText, /"text":"Respuesta"/);
   assert.match(streamText, /"text":" en streaming\."/);
   assert.match(streamText, /"fallback":false/);
+});
+
+test('queues infographic generation and returns its result through the job status route', async () => {
+  const startedAt = Date.now();
+  const response = await fetch(`${baseUrl}/api/generate-infographic`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify({ prompt: 'Mapa conceptual de biología' }),
+  });
+  assert.equal(response.status, 202);
+  const queued = await response.json();
+  assert.equal(queued.status, 'queued');
+  assert.ok(queued.jobId);
+  assert.ok(Date.now() - startedAt < 2000);
+
+  const deadline = Date.now() + 5000;
+  let job;
+  while (Date.now() < deadline) {
+    const status = await fetch(`${baseUrl}/api/ai/jobs/${encodeURIComponent(queued.jobId)}`, {
+      headers: { cookie },
+    });
+    assert.equal(status.status, 200);
+    job = await status.json();
+    if (job.status === 'completed') break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.equal(job.status, 'completed');
+  assert.match(job.result.mermaid, /^flowchart TD/);
+});
+
+test('accepts audio for background transcription and immediately returns a job identifier', async () => {
+  const form = new FormData();
+  form.append('audio', new Blob(['audio de prueba'], { type: 'audio/wav' }), 'prueba.wav');
+  const response = await fetch(`${baseUrl}/api/transcribe`, {
+    method: 'POST',
+    headers: { cookie },
+    body: form,
+  });
+  assert.equal(response.status, 202);
+  const queued = await response.json();
+  assert.ok(queued.jobId);
+  assert.ok(['queued', 'preparing', 'processing'].includes(queued.status));
+  assert.equal(queued.savedFile.originalName, 'prueba.wav');
 });

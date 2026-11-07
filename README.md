@@ -17,7 +17,7 @@ PILAR es una plataforma de estudio inteligente que integra:
 - 💬 **Chat académico** con manejo transparente de fallos
 - 🖥️ **Versión web** (PWA) y **Desktop** (Electron)
 
-El despliegue público y la venta no están habilitados hasta configurar secretos, aprovisionar una VM Always Free, revisar sus límites de disponibilidad y completar la validación final de producción.
+El despliegue web previsto es Render Free con Firebase. El plan gratuito puede suspender el servicio y tanto Firebase como Gemini tienen cuotas limitadas; no se garantiza disponibilidad continua. Antes de migrar una instalación existente, exporta y migra el almacenamiento como indica [GUIA-DESPLIEGUE-RENDER.md](GUIA-DESPLIEGUE-RENDER.md).
 
 ---
 
@@ -69,8 +69,9 @@ npm run desktop
 - Rate limiting contra abuso
 - Headers HTTP seguros
 - Validación de entrada
-- Registro con invitación en producción, contraseñas derivadas con scrypt y sesiones HttpOnly
+- Registro con invitación en producción, Firebase Authentication y sesiones HttpOnly; scrypt se usa solo para validar cuentas heredadas durante su migración
 - Almacenamiento separado por cuenta
+- Sesiones de Firebase Authentication en cookies HttpOnly; Firestore y Realtime Database solo se acceden desde el servidor
 
 ---
 
@@ -84,7 +85,9 @@ npm run desktop
 **Backend:**
 - Node.js 22 LTS
 - HTTP puro (sin frameworks)
-- Gestión de archivos local
+- Firebase Authentication y Firestore para cuentas/datos estructurados
+- Realtime Database para archivos en fragmentos
+- Persistencia local para desarrollo y escritorio
 
 **IA:**
 - Google Gemini API (gemini-flash-latest)
@@ -97,7 +100,7 @@ La prueba de 7 días bloquea IA al vencer. La web tiene Checkout Pro de compra �
 Los borradores de [PRIVACIDAD.md](PRIVACIDAD.md) y [CONDICIONES-DE-USO.md](CONDICIONES-DE-USO.md) requieren completar los datos del operador, contactos, condiciones económicas y revisión legal local. Consulta [PRELANZAMIENTO-COMERCIAL.md](PRELANZAMIENTO-COMERCIAL.md) para la lista completa de bloqueantes.
 
 **Deployment:**
-- Docker en una VM Oracle Cloud Always Free (autogestionado)
+- Render Free con persistencia Firebase; tareas visuales y transcripciones se procesan en segundo plano
 
 ---
 
@@ -128,6 +131,8 @@ Content-Type: multipart/form-data
 [audio file]
 ```
 
+Las rutas de transcripción y generación visual responden `202 Accepted` con un `jobId`; consulta `GET /api/transcribe/jobs/{jobId}` o `GET /api/ai/jobs/{jobId}` para progreso y resultado.
+
 Ver documentación completa en [DOCUMENTACION-TECNICA.md](DOCUMENTACION-TECNICA.md)
 
 ---
@@ -142,7 +147,7 @@ NODE_ENV=production
 PORT=3000
 ```
 
-Ver `.env.example` para plantilla completa.
+En Render también se requieren `PILAR_PERSISTENCE=firebase` y las variables privadas `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_DATABASE_URL` y `FIREBASE_WEB_API_KEY`. Ver `.env.example` y [la guía de Render/Firebase](GUIA-DESPLIEGUE-RENDER.md).
 
 ---
 
@@ -200,7 +205,7 @@ curl http://127.0.0.1:3000/api/health
 
 ---
 
-## 🐳 Docker
+## 🐳 Docker local (opcional)
 
 ```bash
 # Build
@@ -215,7 +220,7 @@ docker run -p 3000:3000 \
 docker compose up -d --build
 ```
 
-Para publicar con HTTPS, Caddy y persistencia en una VM Always Free, sigue [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md). El alojamiento gratuito no incluye una garantía de disponibilidad; OCI puede reclamar instancias Always Free inactivas.
+Docker es opcional para desarrollo. Para el despliegue web, usa [GUIA-DESPLIEGUE-RENDER.md](GUIA-DESPLIEGUE-RENDER.md); no publiques en Render sin configurar Firebase y migrar primero los datos que deban conservarse.
 
 ---
 
@@ -224,7 +229,7 @@ Para publicar con HTTPS, Caddy y persistencia en una VM Always Free, sigue [GUIA
 | Archivo | Descripción |
 |---------|-------------|
 | [INICIO-RAPIDO.md](INICIO-RAPIDO.md) | 3 pasos para publicar |
-| [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md) | Despliegue Docker en Oracle Cloud Always Free |
+| [GUIA-DESPLIEGUE-RENDER.md](GUIA-DESPLIEGUE-RENDER.md) | Despliegue Render Free, Firebase y migración |
 | [DOCUMENTACION-TECNICA.md](DOCUMENTACION-TECNICA.md) | API, arquitectura, troubleshooting |
 | [INFORME-TESTING-PILAR.md](INFORME-TESTING-PILAR.md) | Testing completo |
 | [GUIA-EMPAQUETADO.md](GUIA-EMPAQUETADO.md) | Cómo empaquetar app |
@@ -286,7 +291,7 @@ Este proyecto está bajo la licencia ISC.
 
 - **Repositorio:** https://github.com/paula27081974/pilar-estudiante
 - **Gemini API:** https://ai.google.dev
-- **Oracle Cloud Free Tier:** https://www.oracle.com/cloud/free/
+- **Render:** https://render.com/
 - **Electron:** https://www.electronjs.org
 
 ---

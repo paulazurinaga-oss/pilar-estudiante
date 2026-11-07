@@ -26,11 +26,11 @@ Este mapa y varios documentos enlazados se crearon antes de la auditoría de lan
 
 ## 📚 DOCUMENTACIÓN POR PROPÓSITO
 
-### Si quiero PUBLICAR en Oracle Cloud
-📖 [`GUIA-DESPLIEGUE-OCI.md`](GUIA-DESPLIEGUE-OCI.md)
-- VM Always Free y reglas de red
-- Docker Compose, Caddy y HTTPS
-- Secretos, persistencia y verificación
+### Si quiero PUBLICAR en Render
+📖 [`GUIA-DESPLIEGUE-RENDER.md`](GUIA-DESPLIEGUE-RENDER.md)
+- Render Free y configuración Firebase
+- Migración de cuentas y archivos
+- Secretos, límites gratuitos y verificación
 
 ### Si quiero ENTENDER QUÉ SE ARREGLÓ
 📖 [`INFORME-TESTING-PILAR.md`](INFORME-TESTING-PILAR.md)
@@ -91,8 +91,8 @@ Este mapa y varios documentos enlazados se crearon antes de la auditoría de lan
 - `README.md` - enlace al repositorio y pasos de clonación
 - `DOCUMENTACION-TECNICA.md` - Git status
 
-### Oracle Cloud y Deploy
-- `GUIA-DESPLIEGUE-OCI.md` - preparación y despliegue
+### Render y Firebase
+- `GUIA-DESPLIEGUE-RENDER.md` - preparación, migración y despliegue
 - `INFORME-TESTING-PILAR.md` - Servidor status
 
 ### API y Endpoints
@@ -106,7 +106,7 @@ Este mapa y varios documentos enlazados se crearon antes de la auditoría de lan
 
 ### Problemas
 - `DOCUMENTACION-TECNICA.md` - Troubleshooting
-- `GUIA-DESPLIEGUE-OCI.md` - Solución de problemas
+- `GUIA-DESPLIEGUE-RENDER.md` - Solución de problemas
 - `CHECKLIST-FINAL.md` - Recordatorios importantes
 
 ### Arquitectura y Código
@@ -123,7 +123,7 @@ Este mapa y varios documentos enlazados se crearon antes de la auditoría de lan
 | 00-RESUMEN-PAULA | 2 min | Empezar aquí | [Link](00-RESUMEN-PAULA-LEE-ESTO-PRIMERO.md) |
 | INICIO-RAPIDO | 3 min | 3 pasos quick | [Link](INICIO-RAPIDO.md) |
 | README | 5 min | Qué es PILAR | [Link](README.md) |
-| GUIA-DESPLIEGUE-OCI | 20 min | Publicar completo | [Link](GUIA-DESPLIEGUE-OCI.md) |
+| GUIA-DESPLIEGUE-RENDER | 20 min | Publicar y migrar datos | [Link](GUIA-DESPLIEGUE-RENDER.md) |
 | DOCUMENTACION-TECNICA | 15 min | Cómo funciona | [Link](DOCUMENTACION-TECNICA.md) |
 | INFORME-TESTING | 10 min | Qué se arregló | [Link](INFORME-TESTING-PILAR.md) |
 | CHECKLIST-FINAL | 10 min | Verificación | [Link](CHECKLIST-FINAL.md) |
@@ -136,7 +136,7 @@ Este mapa y varios documentos enlazados se crearon antes de la auditoría de lan
 ### Escenario 1: Quiero PUBLICAR AHORA (25 min)
 1. Lee: `00-RESUMEN-PAULA-LEE-ESTO-PRIMERO.md` (2 min)
 2. Lee: `INICIO-RAPIDO.md` (3 min)
-3. Sigue: `GUIA-DESPLIEGUE-OCI.md`
+3. Sigue: `GUIA-DESPLIEGUE-RENDER.md`
 4. Verifica el dominio HTTPS configurado
 
 ### Escenario 2: Quiero ENTENDER qué pasó (15 min)
@@ -151,7 +151,7 @@ Este mapa y varios documentos enlazados se crearon antes de la auditoría de lan
 
 ### Escenario 4: Tengo un PROBLEMA (variable)
 1. Busca en: `DOCUMENTACION-TECNICA.md` - Troubleshooting
-2. Busca en: `GUIA-DESPLIEGUE-OCI.md` - Operación y datos
+2. Busca en: `GUIA-DESPLIEGUE-RENDER.md` - Operación y datos
 3. Consulta: `CHECKLIST-FINAL.md` - Recordatorios
 
 ### Escenario 5: Necesito REFERENCIA TÉCNICA (15 min)

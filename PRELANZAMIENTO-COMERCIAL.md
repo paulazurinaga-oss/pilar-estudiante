@@ -4,8 +4,8 @@ Este checklist distingue el código probado localmente de las tareas que requier
 
 ## Hecho y comprobado localmente
 
-- [x] Contraseñas derivadas con scrypt; cookies de sesión HttpOnly, SameSite y Secure detrás de HTTPS.
-- [x] Sesiones persistentes entre reinicios, almacenadas como hashes en el disco persistente.
+- [x] Firebase Authentication con cookies de sesión HttpOnly, SameSite y Secure detrás de HTTPS; scrypt solo para migrar cuentas legadas.
+- [x] Persistencia remota diseñada con Firebase Authentication, Firestore y Realtime Database; pendiente de validar con las credenciales/proyecto reales del operador.
 - [x] Invitaciones individuales de un solo uso y licencias desktop Ed25519 ligadas al correo.
 - [x] Prueba de siete días aplicada desde el servidor.
 - [x] Archivos y carpetas aislados por usuario; el usuario puede borrar su cuenta y sus datos.
@@ -19,8 +19,8 @@ Este checklist distingue el código probado localmente de las tareas que requier
 2. **Web:** Checkout Pro está integrado para licencia única, pero permanece apagado hasta configurar `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `PILAR_WEB_PRICE_ARS` (entero en ARS) y `PILAR_PUBLIC_URL` (HTTPS real). Activa la cuenta solo después de firma webhook válida y consulta de pago aprobado.
 3. **Completar documentos:** reemplazar todos los campos `[entre corchetes]` en `PRIVACIDAD.md` y `CONDICIONES-DE-USO.md`, y solicitar revisión legal/fiscal local. Actualmente son borradores.
 4. **Decidir correo y soporte:** configurar correo transaccional antes de abrir al público. No existe verificación de email, recuperación de contraseña ni flujo de soporte dentro de la app. Si una persona pierde su clave, hoy no puede restablecerla por sí sola.
-5. **Preparar el hosting:** seguir [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md), confirmar que todos los recursos OCI sean Always Free y configurar `GEMINI_API_KEY`, `PILAR_REGISTRATION_CODES`, `PILAR_OPEN_REGISTRATION`, `PILAR_LICENSE_CODES`, dominio y persistencia. OCI puede reclamar instancias inactivas, por lo que el nivel gratuito no ofrece disponibilidad garantizada. Como los usuarios, sesiones y archivos se guardan en JSON local, mantener una sola instancia y respaldos cifrados.
-6. **Prueba de aceptación de producción:** registrar dos cuentas con invitaciones distintas; comprobar sesión después de reiniciar la VM, separación de archivos, borrado de cuenta, permisos, HTTPS, límites, IA, transcripción real e imagen real con la cuenta Gemini y cuotas previstas.
+5. **Preparar el hosting:** seguir [GUIA-DESPLIEGUE-RENDER.md](GUIA-DESPLIEGUE-RENDER.md), crear Firebase Auth/Firestore/Realtime Database, aplicar las reglas, migrar el respaldo de Render y configurar secretos/códigos en Render. El plan gratuito puede suspender el servicio y sus cuotas son limitadas; no garantiza disponibilidad continua.
+6. **Prueba de aceptación de producción:** con un proyecto de prueba, registrar dos cuentas con invitaciones distintas; comprobar sesión, separación y eliminación de datos, reglas Firebase, HTTPS, límites, reinicio/reanudación de trabajos, IA, transcripción e imagen reales con cuotas previstas.
 7. **Distribución desktop:** el instalador no contiene clave. El comprador introduce su propia clave Gemini en Configuración; queda en su perfil local. Tras confirmar manualmente su pago, emite una licencia Ed25519 ligada a su correo con `npm run license:issue -- desktop correo-del-comprador`. La clave privada del emisor está en `%USERPROFILE%\.pilar-license-issuer`, fuera del proyecto; respáldala cifrada y no la pierdas ni compartas. Nunca distribuyas tu `.env` ni una clave Gemini común.
 8. **Confianza desktop:** el instalador generado no está firmado digitalmente. Windows puede mostrar advertencias de SmartScreen; para distribución profesional compra/gestiona un certificado de firma y firma también el ejecutable/instalador.
 9. **Resguardo operativo:** definir copias de seguridad cifradas, restauración, respuesta a incidentes, retención/eliminación, costos de almacenamiento y cuota, y procedimiento para rotar secretos.

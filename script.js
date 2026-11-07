@@ -449,12 +449,14 @@ async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({ error: 'Request failed' }));
+    const requestError = new Error(errorPayload.error || 'Request failed');
+    requestError.status = response.status;
     if (response.status === 401) {
       document.getElementById('welcomeModal').classList.remove('hidden');
       document.getElementById('appShell').classList.add('hidden');
       setAuthMode('login');
     }
-    throw new Error(errorPayload.error || 'Request failed');
+    throw requestError;
   }
 
   return response.json().catch(() => ({}));
@@ -638,6 +640,7 @@ function updateTranscriptionProgress(job) {
 
 async function waitForTranscription(jobId) {
   const deadline = Date.now() + 45 * 60 * 1000;
+  let pollInterval = 2000;
   while (true) {
     if (Date.now() >= deadline) {
       throw new Error('La transcripción superó el tiempo máximo de 45 minutos. Puedes reintentarlo con un archivo más corto.');
@@ -655,8 +658,40 @@ async function waitForTranscription(jobId) {
       activeTranscriptionJobId = null;
       throw new Error(job.error || 'La transcripción quedó pausada o falló.');
     }
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    pollInterval = Math.min(Math.round(pollInterval * 1.4), 10_000);
   }
+}
+
+async function waitForAiJob(jobId) {
+  const deadline = Date.now() + 45 * 60 * 1000;
+  let temporaryFailures = 0;
+  let pollInterval = 2000;
+  while (Date.now() < deadline) {
+    let job;
+    try {
+      job = await apiRequest(`/ai/jobs/${encodeURIComponent(jobId)}`, {
+        signal: AbortSignal.timeout(30 * 1000),
+      });
+      temporaryFailures = 0;
+    } catch (error) {
+      if (error.status === 401 || (error.status && error.status < 500)) throw error;
+      temporaryFailures += 1;
+      if (temporaryFailures > 5) throw error;
+      setStatus('El servidor no responde temporalmente; se reintentará consultar el trabajo.');
+      await new Promise((resolve) => setTimeout(resolve, Math.min(temporaryFailures * 2000, 10_000)));
+      continue;
+    }
+
+    setStatus(job.message || 'Gemini está procesando la solicitud.');
+    if (job.status === 'completed') return job.result;
+    if (job.status === 'failed' || job.status === 'cancelled') {
+      throw new Error(job.error || 'La tarea de IA no pudo completarse.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    pollInterval = Math.min(Math.round(pollInterval * 1.4), 10_000);
+  }
+  throw new Error('La generación superó el límite de espera de 45 minutos. Puedes reintentarlo más tarde.');
 }
 
 async function transcribeAudioFile(file) {
@@ -1498,10 +1533,12 @@ async function generateInfographicFromPrompt(prompt) {
   generatedImage.textContent = 'Generando estructura visual...';
   infographicCode.textContent = 'Generando...';
   try {
-    const result = await apiRequest('/generate-infographic', {
+    const queued = await apiRequest('/generate-infographic', {
       method: 'POST',
       body: JSON.stringify({ prompt: prompt.trim() }),
     });
+    const result = await waitForAiJob(queued.jobId);
+    if (!result?.mermaid) throw new Error('Gemini no devolvió una estructura visual válida.');
     latestInfographic = { prompt: prompt.trim(), mermaid: result.mermaid, title: result.title || 'Infografía PILAR' };
     infographicCode.textContent = result.mermaid;
     await renderInfographic(result.mermaid);

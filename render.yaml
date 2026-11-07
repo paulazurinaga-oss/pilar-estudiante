@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: pilar-del-estudiante
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PILAR_PERSISTENCE
+        value: firebase
+      - key: PILAR_OPEN_REGISTRATION
+        value: "false"
+      - key: PILAR_GEMINI_TIMEOUT_MS
+        value: "600000"
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_DATABASE_URL
+        sync: false
+      - key: FIREBASE_WEB_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PILAR_REGISTRATION_CODES
+        sync: false
+      - key: PILAR_LICENSE_CODES
+        sync: false
+      - key: PILAR_PUBLIC_URL
+        sync: false

@@ -2,26 +2,45 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { apiConfig } = require('./src/services/appConfig');
-const { register, login, getSession, redeemLicense, destroySession, deleteAccount, SESSION_DURATION_MS } = require('./src/services/authService');
-const { listFolders, saveFolders } = require('./src/services/userDataService');
-const { getPaymentConfig, createCheckout, verifyWebhookSignature, processPaymentNotification, getOrder } = require('./src/services/paymentService');
-const { generateAssistantReplyStream, generateImage, generateInfographic } = require('./src/services/aiService');
-const { saveBinaryFile, saveTextFile, listFiles, deleteFile } = require('./src/services/storageService');
-const { createJob, getJob, cancelJob, publicJob, activeJobCount } = require('./src/services/transcriptionQueue');
+const localAuth = require('./src/services/authService');
+const localUserData = require('./src/services/userDataService');
+const localPayments = require('./src/services/paymentService');
+const localStorage = require('./src/services/storageService');
+const localTranscription = require('./src/services/transcriptionQueue');
+const localAiJobs = require('./src/services/aiJobQueue');
+const { generateAssistantReplyStream } = require('./src/services/aiService');
+
+const useFirebasePersistence = process.env.PILAR_PERSISTENCE === 'firebase';
+const firebaseService = useFirebasePersistence ? require('./src/services/firebaseService') : null;
+if (process.env.RENDER_SERVICE_ID && !useFirebasePersistence) {
+  throw new Error('Render requiere PILAR_PERSISTENCE=firebase; el almacenamiento local no es persistente.');
+}
+if (useFirebasePersistence) firebaseService.assertConfigured();
+
+const persistence = useFirebasePersistence ? firebaseService : {
+  ...localAuth,
+  ...localUserData,
+  ...localPayments,
+  ...localStorage,
+  createAiJob: localAiJobs.createAiJob,
+  getAiJob: localAiJobs.getAiJob,
+  getTranscriptionJob: localTranscription.getJob,
+  cancelTranscriptionJob: localTranscription.cancelJob,
+};
 
 const hostname = apiConfig.host;
 const port = apiConfig.port;
 const rootDir = __dirname;
 const requestBuckets = new Map();
 const MAX_JSON_BODY_BYTES = 1024 * 1024;
-const MAX_UPLOAD_BODY_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_BODY_BYTES = (useFirebasePersistence ? 50 : 100) * 1024 * 1024;
 const PUBLIC_FILES = new Set([
   'index.html', 'script.js', 'sw.js', 'manifest.json', 'icon.svg', 'icon.ico', path.join('css', 'styles.css'),
   'PRIVACIDAD.md', 'CONDICIONES-DE-USO.md',
   'PRELANZAMIENTO-COMERCIAL.md',
 ]);
 
-console.log(`[PILAR] Configuración cargada. provider=gemini configured=${Boolean(apiConfig.gemini.apiKey)} envPath=${process.env.PILAR_ENV_PATH || 'auto'}`);
+console.log(`[PILAR] Configuración cargada. provider=gemini configured=${Boolean(apiConfig.gemini.apiKey)} persistence=${useFirebasePersistence ? 'firebase' : 'local'} envPath=${process.env.PILAR_ENV_PATH || 'auto'}`);
 
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -73,12 +92,6 @@ function writeSse(res, event, payload) {
     res.once('close', onClose);
     res.once('error', onError);
   });
-}
-
-function isGeminiQuotaError(error) {
-  const message = error?.message || '';
-  return error?.status === 429 || error?.code === 429 || error?.status === 'RESOURCE_EXHAUSTED'
-    || /429|RESOURCE_EXHAUSTED|quota/i.test(message);
 }
 
 function getClientAddress(req) {
@@ -139,22 +152,29 @@ function readRequestBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
 }
 
 function parseMultipartForm(data, boundary) {
-  const boundaryMarker = `--${boundary}`;
+  if (!boundary) throw new Error('El encabezado multipart no incluye un límite válido.');
+  const boundaryMarker = Buffer.from(`--${boundary}`);
+  const nextPartMarker = Buffer.from(`\r\n--${boundary}`);
+  const headerSeparator = Buffer.from('\r\n\r\n');
   const files = [];
   const fields = {};
-
-  const chunks = data.toString('binary').split(boundaryMarker);
-
-  for (const chunk of chunks) {
-    if (!chunk || chunk.trim() === '--' || chunk.trim() === '--\r\n') {
+  let cursor = 0;
+  while (true) {
+    const markerIndex = data.indexOf(boundaryMarker, cursor);
+    if (markerIndex < 0) break;
+    let partStart = markerIndex + boundaryMarker.length;
+    if (data.subarray(partStart, partStart + 2).toString() === '--') break;
+    if (data.subarray(partStart, partStart + 2).toString() === '\r\n') partStart += 2;
+    const nextMarkerIndex = data.indexOf(nextPartMarker, partStart);
+    if (nextMarkerIndex < 0) break;
+    cursor = nextMarkerIndex + 2;
+    const part = data.subarray(partStart, nextMarkerIndex);
+    const separatorIndex = part.indexOf(headerSeparator);
+    if (separatorIndex < 0) {
       continue;
     }
 
-    const sections = chunk.split('\r\n\r\n');
-    if (sections.length < 2) continue;
-
-    const headerBlock = sections[0];
-    const content = sections.slice(1).join('\r\n\r\n');
+    const headerBlock = part.subarray(0, separatorIndex).toString('latin1');
     const headerMatch = headerBlock.match(/name="([^"]+)"(?:; filename="([^"]*)")?/i);
 
     if (!headerMatch) continue;
@@ -163,7 +183,7 @@ function parseMultipartForm(data, boundary) {
     const fileName = headerMatch[2]
       ? Buffer.from(headerMatch[2], 'binary').toString('utf8')
       : undefined;
-    const rawData = Buffer.from(content.replace(/\r\n$/, ''), 'binary');
+    const rawData = part.subarray(separatorIndex + headerSeparator.length);
 
     if (fileName) {
       const contentTypeMatch = headerBlock.match(/Content-Type:\s*([^\r\n]+)/i);
@@ -204,6 +224,7 @@ async function handleRoutes(req, res) {
       environment: apiConfig.environment,
       provider: 'gemini',
       providerConfigured: Boolean(apiConfig.gemini.apiKey),
+      persistence: useFirebasePersistence ? 'firebase' : 'local',
       status: 'healthy',
       timestamp: new Date().toISOString(),
     });
@@ -222,12 +243,12 @@ async function handleRoutes(req, res) {
     const paymentId = url.searchParams.get('data.id')
       || url.searchParams.get('id')
       || notification?.data?.id;
-    const config = getPaymentConfig();
+    const config = persistence.getPaymentConfig();
     if (!config.enabled) {
       sendJson(res, 503, { error: 'Webhook de pagos no configurado.' });
       return;
     }
-    if (!verifyWebhookSignature({
+    if (!persistence.verifyWebhookSignature({
       signatureHeader: req.headers['x-signature'],
       requestId: req.headers['x-request-id'],
       paymentId,
@@ -237,7 +258,7 @@ async function handleRoutes(req, res) {
       return;
     }
     try {
-      const result = await processPaymentNotification(paymentId);
+      const result = await persistence.processPaymentNotification(paymentId);
       sendJson(res, 200, { received: true, applied: result.applied });
     } catch (error) {
       console.error(`[PILAR][payments] webhook ${String(paymentId).slice(0, 32)} failed: ${error.message}`);
@@ -256,9 +277,9 @@ async function handleRoutes(req, res) {
 
     try {
       const payload = JSON.parse((await readRequestBody(req)).toString() || '{}');
-      const session = action === 'register' ? register(payload) : login(payload);
+      const session = action === 'register' ? await persistence.register(payload) : await persistence.login(payload);
       const secure = req.headers['x-forwarded-proto']?.split(',')[0].trim() === 'https' || req.socket.encrypted;
-      const cookie = `pilar_session=${session.token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(SESSION_DURATION_MS / 1000)}${secure ? '; Secure' : ''}`;
+      const cookie = `pilar_session=${session.token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(persistence.SESSION_DURATION_MS / 1000)}${secure ? '; Secure' : ''}`;
       res.setHeader('Set-Cookie', cookie);
       sendJson(res, 200, { user: session.user, expiresAt: session.expiresAt });
     } catch (error) {
@@ -271,16 +292,17 @@ async function handleRoutes(req, res) {
     .map((part) => part.trim())
     .find((part) => part.startsWith('pilar_session='))
     ?.slice('pilar_session='.length);
+  const sessionUser = await persistence.getSession(sessionToken);
 
   if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
-    destroySession(sessionToken);
+    await persistence.destroySession(sessionToken);
     res.setHeader('Set-Cookie', 'pilar_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
     sendJson(res, 200, { ok: true });
     return;
   }
 
   if (req.method === 'DELETE' && url.pathname === '/api/auth/account') {
-    const activeUser = getSession(sessionToken);
+    const activeUser = sessionUser;
     if (!activeUser) {
       sendJson(res, 401, { error: 'Inicia sesión para eliminar la cuenta.' });
       return;
@@ -291,7 +313,7 @@ async function handleRoutes(req, res) {
         return;
       }
       const payload = JSON.parse((await readRequestBody(req)).toString() || '{}');
-      deleteAccount(activeUser.id, payload.password);
+      await persistence.deleteAccount(activeUser.id, payload.password);
       res.setHeader('Set-Cookie', 'pilar_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
       sendJson(res, 200, { ok: true, message: 'La cuenta y sus archivos se eliminaron.' });
     } catch (error) {
@@ -301,7 +323,7 @@ async function handleRoutes(req, res) {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/auth/me') {
-    const user = getSession(sessionToken);
+    const user = sessionUser;
     if (!user) {
       sendJson(res, 401, { error: 'Inicia sesión para continuar.' });
       return;
@@ -311,7 +333,7 @@ async function handleRoutes(req, res) {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/auth/activate') {
-    const activeUser = getSession(sessionToken);
+    const activeUser = sessionUser;
     if (!activeUser) {
       sendJson(res, 401, { error: 'Inicia sesión para activar una licencia.' });
       return;
@@ -322,7 +344,7 @@ async function handleRoutes(req, res) {
     }
     try {
       const payload = JSON.parse((await readRequestBody(req)).toString() || '{}');
-      const user = redeemLicense(activeUser.id, payload.code);
+      const user = await persistence.redeemLicense(activeUser.id, payload.code);
       sendJson(res, 200, { user, message: 'Licencia activada correctamente.' });
     } catch (error) {
       sendJson(res, 400, { error: error.message || 'No se pudo activar la licencia.' });
@@ -330,15 +352,15 @@ async function handleRoutes(req, res) {
     return;
   }
 
-  if (url.pathname.startsWith('/api/') && !getSession(sessionToken)) {
+  if (url.pathname.startsWith('/api/') && !sessionUser) {
     sendJson(res, 401, { error: 'Inicia sesión para continuar.' });
     return;
   }
 
-  req.user = getSession(sessionToken);
+  req.user = sessionUser;
 
   if (req.method === 'GET' && url.pathname === '/api/payments/config') {
-    const paymentConfig = getPaymentConfig();
+    const paymentConfig = persistence.getPaymentConfig();
     sendJson(res, 200, {
       enabled: paymentConfig.enabled && process.env.NODE_ENV !== 'desktop',
       desktop: process.env.NODE_ENV === 'desktop',
@@ -362,7 +384,7 @@ async function handleRoutes(req, res) {
       const host = req.headers['x-forwarded-host']?.split(',')[0].trim() || req.headers.host;
       const protocol = req.headers['x-forwarded-proto']?.split(',')[0].trim() || (req.socket.encrypted ? 'https' : 'http');
       const publicBaseUrl = process.env.PILAR_PUBLIC_URL || `${protocol}://${host}`;
-      const checkout = await createCheckout({ user: req.user, publicBaseUrl });
+      const checkout = await persistence.createCheckout({ user: req.user, publicBaseUrl });
       sendJson(res, 200, checkout);
     } catch (error) {
       sendJson(res, 503, { error: error.message || 'No se pudo iniciar la compra.' });
@@ -371,7 +393,7 @@ async function handleRoutes(req, res) {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/payments/status') {
-    const order = getOrder(url.searchParams.get('orderId'));
+    const order = await persistence.getOrder(url.searchParams.get('orderId'));
     if (!order || order.userId !== req.user.id) {
       sendJson(res, 404, { error: 'Compra no encontrada.' });
       return;
@@ -386,7 +408,22 @@ async function handleRoutes(req, res) {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/folders') {
-    sendJson(res, 200, { folders: listFolders(req.user.id) });
+    sendJson(res, 200, { folders: await persistence.listFolders(req.user.id) });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/api/ai/jobs/')) {
+    if (!allowRequest(req, 'ai-job-status', 60, 60 * 1000)) {
+      sendJson(res, 429, { error: 'Demasiadas consultas de trabajos de IA. Espera un minuto.' });
+      return;
+    }
+    const jobId = decodeURIComponent(url.pathname.slice('/api/ai/jobs/'.length));
+    const job = await persistence.getAiJob(req.user.id, jobId);
+    if (!job) {
+      sendJson(res, 404, { error: 'Trabajo de IA no encontrado.' });
+      return;
+    }
+    sendJson(res, 200, job);
     return;
   }
 
@@ -441,7 +478,7 @@ async function handleRoutes(req, res) {
   if (req.method === 'PUT' && url.pathname === '/api/folders') {
     try {
       const payload = JSON.parse((await readRequestBody(req)).toString() || '{}');
-      sendJson(res, 200, { folders: saveFolders(req.user.id, payload.folders) });
+      sendJson(res, 200, { folders: await persistence.saveFolders(req.user.id, payload.folders) });
     } catch (error) {
       sendJson(res, 400, { error: error.message || 'No se pudieron guardar las carpetas.' });
     }
@@ -515,16 +552,11 @@ async function handleRoutes(req, res) {
         sendJson(res, 400, { error: 'Describe la imagen en un máximo de 4000 caracteres.' });
         return;
       }
-      sendJson(res, 200, await generateImage(payload.prompt));
+      const job = await persistence.createAiJob({ userId: req.user.id, type: 'image', prompt: payload.prompt.trim() });
+      sendJson(res, 202, { jobId: job.id, status: job.status, message: job.message });
     } catch (error) {
-      if (isGeminiQuotaError(error)) {
-        sendJson(res, 429, {
-          success: false,
-          error: 'Límite de cuota gratuita de Gemini alcanzado. Por favor, aguarda unos minutos.',
-        });
-      } else {
-        sendJson(res, 503, { error: error.message || 'No se pudo generar la imagen.' });
-      }
+      const status = /cola de IA está llena/i.test(error.message || '') ? 429 : 503;
+      sendJson(res, status, { error: error.message || 'No se pudo poner la generación de imagen en cola.' });
     }
     return;
   }
@@ -541,13 +573,11 @@ async function handleRoutes(req, res) {
         sendJson(res, 400, { error: 'Describe el mapa mental o la infografía en un máximo de 4000 caracteres.' });
         return;
       }
-      sendJson(res, 200, await generateInfographic(prompt));
+      const job = await persistence.createAiJob({ userId: req.user.id, type: 'infographic', prompt });
+      sendJson(res, 202, { jobId: job.id, status: job.status, message: job.message });
     } catch (error) {
-      if (isGeminiQuotaError(error)) {
-        sendJson(res, 429, { success: false, error: 'Límite temporal de Gemini alcanzado. Espera unos minutos e inténtalo nuevamente.' });
-      } else {
-        sendJson(res, 503, { success: false, error: error.message || 'No se pudo generar el mapa visual.' });
-      }
+      const status = /cola de IA está llena/i.test(error.message || '') ? 429 : 503;
+      sendJson(res, status, { success: false, error: error.message || 'No se pudo poner el mapa visual en cola.' });
     }
     return;
   }
@@ -557,7 +587,10 @@ async function handleRoutes(req, res) {
       sendJson(res, 429, { error: 'Demasiadas transcripciones. Espera unos minutos e inténtalo nuevamente.' });
       return;
     }
-    if (activeJobCount(req.user.id) >= 2 || activeJobCount() >= 20) {
+    const userActiveJobs = useFirebasePersistence
+      ? await firebaseService.countActiveJobs(req.user.id, 'transcription')
+      : localTranscription.activeJobCount(req.user.id);
+    if (userActiveJobs >= 2 || (!useFirebasePersistence && localTranscription.activeJobCount() >= 20)) {
       sendJson(res, 429, { error: 'La cola de transcripción está llena. Espera a que termine un trabajo activo.' });
       return;
     }
@@ -584,7 +617,7 @@ async function handleRoutes(req, res) {
         return;
       }
 
-      const saved = saveBinaryFile({
+      const saved = await persistence.saveBinaryFile({
         userId: req.user.id,
         fileName: `${Date.now()}-${file.fileName || 'audio'}`,
         buffer: file.buffer,
@@ -593,20 +626,44 @@ async function handleRoutes(req, res) {
       });
 
       const chunkSeconds = Number(process.env.PILAR_AUDIO_CHUNK_SECONDS || 20 * 60);
-      const job = createJob({
-        userId: req.user.id,
-        filePath: saved.fullPath,
-        fileName: file.fileName || 'audio',
-        mimeType: file.mimeType,
-        chunkSeconds,
-      });
-      job.savedFile = {
+      const savedFile = {
         fileName: saved.fileName,
         originalName: file.fileName || 'audio',
         mimeType: file.mimeType,
         size: file.buffer.length,
         relativePath: saved.relativePath,
       };
+      let job;
+      try {
+        job = useFirebasePersistence
+          ? await firebaseService.enqueueTranscription({
+            userId: req.user.id,
+            fileId: saved.fileName,
+            fileName: file.fileName || 'audio',
+            mimeType: file.mimeType,
+            chunkSeconds,
+            savedFile,
+          })
+          : localTranscription.createJob({
+            userId: req.user.id,
+            filePath: saved.fullPath,
+            fileName: file.fileName || 'audio',
+            mimeType: file.mimeType,
+            chunkSeconds,
+          });
+      } catch (error) {
+        try {
+          await persistence.deleteFile({ userId: req.user.id, folder: 'uploads', fileName: saved.fileName });
+        } catch (cleanupError) {
+          console.error(`[PILAR][transcribe] No se pudo limpiar el archivo no programado: ${cleanupError.message}`);
+        }
+        if (/cola de transcripción está llena/i.test(error.message || '')) {
+          sendJson(res, 429, { error: error.message });
+          return;
+        }
+        throw error;
+      }
+      if (!useFirebasePersistence) job.savedFile = savedFile;
 
       sendJson(res, 202, {
         jobId: job.id,
@@ -623,10 +680,16 @@ async function handleRoutes(req, res) {
   }
 
   if (req.method === 'POST' && url.pathname.startsWith('/api/transcribe/jobs/')) {
+    if (!allowRequest(req, 'transcription-job-status', 60, 60 * 1000)) {
+      sendJson(res, 429, { error: 'Demasiadas consultas de transcripción. Espera un minuto.' });
+      return;
+    }
     const jobId = decodeURIComponent(url.pathname.slice('/api/transcribe/jobs/'.length));
     const isCancelPath = jobId.endsWith('/cancel');
     const cleanJobId = isCancelPath ? jobId.replace(/\/cancel$/, '') : jobId;
-    const job = getJob(cleanJobId, req.user.id);
+    const job = useFirebasePersistence
+      ? await firebaseService.getTranscriptionJob(req.user.id, cleanJobId)
+      : localTranscription.getJob(cleanJobId, req.user.id);
 
     if (!job) {
       sendJson(res, 404, { error: 'Trabajo de transcripción no encontrado.' });
@@ -634,25 +697,33 @@ async function handleRoutes(req, res) {
     }
 
     if (isCancelPath) {
-      cancelJob(cleanJobId, req.user.id);
-      sendJson(res, 200, { ok: true, jobId: cleanJobId, status: job.status, message: 'Cancelación solicitada. El proceso intentará limpiar los fragmentos.' });
+      const cancelled = useFirebasePersistence
+        ? await firebaseService.cancelTranscriptionJob(req.user.id, cleanJobId)
+        : (localTranscription.cancelJob(cleanJobId, req.user.id), job);
+      sendJson(res, 200, { ok: true, jobId: cleanJobId, status: cancelled?.status || job.status, message: 'Cancelación solicitada. El proceso intentará limpiar los fragmentos.' });
       return;
     }
 
-    sendJson(res, 200, publicJob(job));
+    sendJson(res, 200, useFirebasePersistence ? job : localTranscription.publicJob(job));
     return;
   }
 
   if (req.method === 'GET' && url.pathname.startsWith('/api/transcribe/jobs/')) {
+    if (!allowRequest(req, 'transcription-job-status', 60, 60 * 1000)) {
+      sendJson(res, 429, { error: 'Demasiadas consultas de transcripción. Espera un minuto.' });
+      return;
+    }
     const jobId = decodeURIComponent(url.pathname.slice('/api/transcribe/jobs/'.length));
-    const job = getJob(jobId, req.user.id);
+    const job = useFirebasePersistence
+      ? await firebaseService.getTranscriptionJob(req.user.id, jobId)
+      : localTranscription.getJob(jobId, req.user.id);
 
     if (!job) {
       sendJson(res, 404, { error: 'Trabajo de transcripción no encontrado.' });
       return;
     }
 
-    sendJson(res, 200, publicJob(job));
+    sendJson(res, 200, useFirebasePersistence ? job : localTranscription.publicJob(job));
     return;
   }
 
@@ -672,7 +743,7 @@ async function handleRoutes(req, res) {
         return;
       }
 
-      const saved = saveTextFile({ userId: req.user.id, fileName, content, folder: 'uploads' });
+      const saved = await persistence.saveTextFile({ userId: req.user.id, fileName, content, folder: 'uploads' });
       sendJson(res, 200, { message: `Contenido guardado: ${saved.fileName}`, savedFile: saved });
     } catch (error) {
       sendJson(res, 500, { error: error.message || 'No se pudo guardar el contenido.' });
@@ -698,7 +769,7 @@ async function handleRoutes(req, res) {
         sendJson(res, 400, { error: 'La imagen supera el límite de 10 MB.' });
         return;
       }
-      const savedFile = saveBinaryFile({
+      const savedFile = await persistence.saveBinaryFile({
         userId: req.user.id,
         fileName: `PILAR-imagen-${Date.now()}.${mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png'}`,
         buffer,
@@ -714,7 +785,7 @@ async function handleRoutes(req, res) {
 
   if (req.method === 'GET' && url.pathname === '/api/storage/files') {
     const folder = url.searchParams.get('folder') === 'pdfs' ? 'pdfs' : 'uploads';
-    sendJson(res, 200, { files: listFiles({ userId: req.user.id, folder }) });
+    sendJson(res, 200, { files: await persistence.listFiles({ userId: req.user.id, folder }) });
     return;
   }
 
@@ -728,7 +799,7 @@ async function handleRoutes(req, res) {
       return;
     }
 
-    if (!deleteFile({ userId: req.user.id, folder: safeFolder, fileName })) {
+    if (!await persistence.deleteFile({ userId: req.user.id, folder: safeFolder, fileName })) {
       sendJson(res, 404, { error: 'Archivo no encontrado.' });
       return;
     }
@@ -760,7 +831,7 @@ async function handleRoutes(req, res) {
         return;
       }
 
-      const saved = saveBinaryFile({
+      const saved = await persistence.saveBinaryFile({
         userId: req.user.id,
         fileName: file.fileName || 'archivo',
         buffer: file.buffer,
@@ -793,7 +864,7 @@ async function handleRoutes(req, res) {
         return;
       }
 
-      const saved = saveBinaryFile({ userId: req.user.id, fileName: file.fileName || 'document.pdf', buffer: file.buffer, mimeType: file.mimeType, folder: 'pdfs' });
+      const saved = await persistence.saveBinaryFile({ userId: req.user.id, fileName: file.fileName || 'document.pdf', buffer: file.buffer, mimeType: file.mimeType, folder: 'pdfs' });
       sendJson(res, 200, { message: `PDF guardado en la carpeta ${apiConfig.storage.pdfDir}.`, savedFile: saved });
     } catch (error) {
       sendJson(res, 500, { error: error.message || 'No se pudo guardar el PDF.' });
@@ -815,7 +886,31 @@ async function handleRoutes(req, res) {
       sendJson(res, 400, { error: 'Ruta de archivo no válida.' });
       return;
     }
-    if (storageParts[1] !== req.user.id || !['uploads', 'pdfs'].includes(storageParts[2]) || storageParts.length !== 4) {
+    if (storageParts[1] !== req.user.id || !['uploads', 'pdfs'].includes(storageParts[2])) {
+      sendJson(res, 404, { error: 'Archivo no encontrado.' });
+      return;
+    }
+    if (useFirebasePersistence) {
+      if (storageParts.length !== 5 || !/^[0-9a-f-]{36}$/i.test(storageParts[3])) {
+        sendJson(res, 404, { error: 'Archivo no encontrado.' });
+        return;
+      }
+      try {
+        const found = await firebaseService.streamFile({
+          userId: req.user.id,
+          folder: storageParts[2],
+          id: storageParts[3],
+          res,
+        });
+        if (!found) sendJson(res, 404, { error: 'Archivo no encontrado.' });
+      } catch (error) {
+        console.error(`[PILAR][firebase-storage] No se pudo descargar ${storageParts[3]}: ${error.message}`);
+        if (!res.headersSent) sendJson(res, 500, { error: 'No se pudo descargar el archivo.' });
+        else if (!res.destroyed && !res.writableEnded) res.destroy(error);
+      }
+      return;
+    }
+    if (storageParts.length !== 4) {
       sendJson(res, 404, { error: 'Archivo no encontrado.' });
       return;
     }
@@ -891,7 +986,7 @@ async function handleRoutes(req, res) {
   });
 }
 
-ensureRootStorage();
+if (!useFirebasePersistence) ensureRootStorage();
 
 const server = http.createServer((req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -904,7 +999,15 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(port, hostname, () => {
-  console.log(`PILAR del estudiante está corriendo en http://${hostname}:${port}`);
-  console.log(`API health: http://${hostname}:${port}/api/health`);
+async function startServer() {
+  if (useFirebasePersistence) await firebaseService.resumeOutstandingJobs();
+  server.listen(port, hostname, () => {
+    console.log(`PILAR del estudiante está corriendo en http://${hostname}:${port}`);
+    console.log(`API health: http://${hostname}:${port}/api/health`);
+  });
+}
+
+startServer().catch((error) => {
+  console.error(`[PILAR] No se pudo iniciar el servidor: ${error.message}`);
+  process.exitCode = 1;
 });

@@ -1,6 +1,6 @@
 # Estado actualizado: pre-lanzamiento
 
-Los checks históricos de este documento no certifican el estado actual de producción. La app tiene pruebas de integración locales para autenticación y aislamiento; no existe aún validación de pagos, despliegue en Oracle Cloud ni transcripción/generación real con cuotas comerciales. Seguir [GUIA-DESPLIEGUE-OCI.md](GUIA-DESPLIEGUE-OCI.md) y [PRELANZAMIENTO-COMERCIAL.md](PRELANZAMIENTO-COMERCIAL.md) para los pendientes actuales.
+Los checks históricos de este documento no certifican el estado actual de producción. Firebase y las tareas asíncronas se validan localmente con mocks; no se ha conectado un proyecto Firebase real ni se ha probado la migración con el respaldo del operador. Antes de desplegar, seguir [GUIA-DESPLIEGUE-RENDER.md](GUIA-DESPLIEGUE-RENDER.md) y [PRELANZAMIENTO-COMERCIAL.md](PRELANZAMIENTO-COMERCIAL.md).
 
 # ✅ CHECKLIST FINAL - PILAR DEL ESTUDIANTE
 
@@ -70,7 +70,7 @@ Los checks históricos de este documento no certifican el estado actual de produ
 |---------|-------------|--------|
 | `INFORME-TESTING-PILAR.md` | Informe completo de testing | ✅ Creado |
 | `RESUMEN-PAULA.md` | Resumen ejecutivo | ✅ Creado |
-| `GUIA-DESPLIEGUE-OCI.md` | Despliegue Docker en Oracle Cloud Always Free | ✅ Creado |
+| `GUIA-DESPLIEGUE-RENDER.md` | Despliegue Render Free y Firebase | ✅ Creado |
 | `DOCUMENTACION-TECNICA.md` | API, arquitectura, troubleshooting | ✅ Creado |
 | `GUIA-EMPAQUETADO.md` | Guía original (actualizada) | ✅ Existía |
 
@@ -122,14 +122,13 @@ git branch -M main
 git push -u origin main
 ```
 
-Guía completa en: `GUIA-DESPLIEGUE-OCI.md`
+Guía de despliegue: `GUIA-DESPLIEGUE-RENDER.md`
 
-#### 3. Publicar en Oracle Cloud
-1. Aprovisionar una VM marcada como Always Free.
-2. Configurar DNS, HTTPS, Docker y secretos siguiendo `GUIA-DESPLIEGUE-OCI.md`.
-3. Mantener una sola instancia y respaldos cifrados.
-
-Guía paso a paso en: `GUIA-DESPLIEGUE-OCI.md`
+#### 3. Publicar en Render
+1. Exportar y migrar la carpeta `storage` del servicio anterior.
+2. Crear Firebase Authentication, Firestore y Realtime Database; aplicar las reglas.
+3. Crear el Web Service desde `render.yaml` y cargar los secretos de entorno.
+4. Probar restauración, trabajos asíncronos y cuotas antes de invitar usuarios.
 
 #### 4. Verificar el despliegue
 - [ ] Abre el dominio HTTPS configurado
@@ -226,13 +225,13 @@ ls -la | grep ".env"
 ### Documentación Interna
 - [x] INFORME-TESTING-PILAR.md
 - [x] RESUMEN-PAULA.md
-- [x] GUIA-DESPLIEGUE-OCI.md
+- [x] GUIA-DESPLIEGUE-RENDER.md
 - [x] DOCUMENTACION-TECNICA.md
 - [x] GUIA-EMPAQUETADO.md
 
 ### Recursos Externos
 - GitHub: https://github.com/paula27081974
-- Oracle Cloud Free Tier: https://www.oracle.com/cloud/free/
+- Firebase Spark: https://firebase.google.com/pricing
 - Gemini API: https://ai.google.dev
 
 ---
@@ -255,6 +254,6 @@ Los tests manuales pasaron.
 *Por: Asistente de Copilot*  
 *Para: Paula (paula27081974)*
 
-**Siguiente paso:** Lee `RESUMEN-PAULA.md` y sigue la `GUIA-DESPLIEGUE-OCI.md`
+**Siguiente paso:** Lee `RESUMEN-PAULA.md` y sigue `GUIA-DESPLIEGUE-RENDER.md`.
 
 **¡A lograr este éxito! 🚀**

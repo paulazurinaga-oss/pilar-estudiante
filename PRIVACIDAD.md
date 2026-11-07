@@ -8,11 +8,11 @@
 
 ## Datos tratados
 
-PILAR puede tratar nombre, correo electrónico, hash de contraseña, datos de sesión, fecha de alta y vencimiento de la prueba, licencias canjeadas, archivos que la persona sube, carpetas y materiales de estudio guardados, y solicitudes enviadas a funciones de IA. Las contraseñas no se guardan en texto plano. Los tokens de sesión se guardan como hashes.
+PILAR puede tratar nombre, correo electrónico, credenciales administradas por Firebase Authentication, datos de sesión, fecha de alta y vencimiento de la prueba, licencias canjeadas, archivos que la persona sube, carpetas y materiales de estudio guardados, y solicitudes enviadas a funciones de IA. Las contraseñas no se guardan en texto plano en PILAR; durante la migración desde instalaciones antiguas, un hash scrypt se conserva temporalmente en Firebase para validarse en el primer inicio de sesión y luego se elimina. Las sesiones web son cookies HttpOnly de Firebase.
 
 ## Finalidades y proveedores
 
-Los datos de cuenta se usan para autenticar, administrar la prueba y las licencias, proteger el servicio y separar los archivos por cuenta. Al pedir una respuesta, transcripción o imagen, el contenido necesario se envía a Google Gemini usando la clave configurada por el operador. Se aplican además las condiciones y políticas vigentes de Google. En el despliegue autogestionado descrito en `GUIA-DESPLIEGUE-OCI.md`, Oracle Cloud Infrastructure proporciona la VM y el disco; el operador administra el sistema, los respaldos y la disponibilidad. Completar la región y los proveedores efectivamente utilizados antes de publicar este aviso.
+Los datos de cuenta se usan para autenticar, administrar la prueba y las licencias, proteger el servicio y separar los archivos por cuenta. En el despliegue web, Render ejecuta el servidor; Firebase Authentication, Cloud Firestore y Realtime Database administran cuentas, datos y archivos. Al pedir una respuesta, transcripción o imagen, el contenido necesario se envía a Google Gemini usando la clave configurada por el operador. Se aplican además las condiciones y políticas vigentes de estos proveedores. El operador debe confirmar las regiones y condiciones efectivamente configuradas antes de publicar este aviso.
 
 Si se habilita la compra web, PILAR envía a Mercado Pago el correo y los datos mínimos del pedido para crear el checkout. No recibe ni almacena tarjetas. Guarda el ID del pedido/pago, estado, importe y moneda para activar la licencia tras confirmar el pago.
 
@@ -20,11 +20,11 @@ No se debe subir información sensible, datos de salud, datos de terceros ni mat
 
 ## Conservación y eliminación
 
-Los datos de cuenta y archivos se conservan mientras la cuenta exista y el servicio esté activo. La persona puede solicitar o iniciar la eliminación de su cuenta desde Configuración; el servicio elimina la cuenta, sus sesiones y los archivos/carpeta de usuario del almacenamiento de la aplicación. Copias de seguridad, registros del hosting o del proveedor de IA pueden tener plazos distintos conforme a sus políticas.
+Los datos de cuenta y archivos se conservan mientras la cuenta exista y el servicio esté activo. La persona puede solicitar o iniciar la eliminación de su cuenta desde Configuración; el servicio elimina la cuenta, sus sesiones, archivos y compras de Firebase. Se conservan únicamente los hashes de invitaciones/licencias ya canjeadas, sin vincularlos a la cuenta, para impedir que vuelvan a utilizarse. Copias de seguridad, registros del hosting o del proveedor de IA pueden tener plazos distintos conforme a sus políticas.
 
 ## Seguridad y transferencias
 
-PILAR aplica contraseñas derivadas con scrypt, sesiones HttpOnly, aislamiento de archivos por cuenta y controles básicos de abuso. Ningún sistema conectado a Internet puede garantizar seguridad absoluta. El alojamiento o los proveedores de IA pueden procesar información desde otros países; el operador debe confirmar las ubicaciones, salvaguardas y obligaciones aplicables antes de ofrecer el servicio.
+PILAR usa Firebase Authentication, sesiones HttpOnly, reglas Firebase que niegan el acceso directo desde clientes, aislamiento de archivos por cuenta y controles básicos de abuso. Render Free puede suspenderse por inactividad y los planes gratuitos de Firebase tienen cuotas y límites; no se garantiza disponibilidad ni capacidad ilimitada. Ningún sistema conectado a Internet puede garantizar seguridad absoluta. El alojamiento o los proveedores de IA pueden procesar información desde otros países; el operador debe confirmar las ubicaciones, salvaguardas y obligaciones aplicables antes de ofrecer el servicio.
 
 ## Derechos y reclamaciones
 

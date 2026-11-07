@@ -1,8 +1,8 @@
 # 🛠️ RESUMEN TÉCNICO - PILAR del estudiante
 
 **Versión:** 1.0.0  
-**Status:** ✅ Producción lista  
-**Última actualización:** 2026-09-01
+**Status:** Pre-lanzamiento; Firebase real y credenciales de despliegue deben verificarse por el operador.
+**Última actualización:** 2026-11-07
 
 ---
 
@@ -21,10 +21,12 @@ Backend:
   - HTTP puro (sin Express, optimizado)
   - Manejo de multipart/form-data
   - Rate limiting integrado
+  - Firebase Admin en despliegue Render (Auth, Firestore, Realtime Database)
+  - Persistencia local en escritorio/desarrollo
 
 IA:
   - Google Gemini API (gemini-flash-latest)
-  - Fallbacks locales cuando API no está disponible
+  - Trabajos asíncronos durables para mapas, imágenes y transcripciones
 
 Desktop:
   - Electron (v31.7.4)
@@ -32,9 +34,9 @@ Desktop:
   - Integración servidor interno
 
 Almacenamiento:
-  - Sistema de archivos local
-  - Carpetas: uploads/, pdfs/
-  - Persistencia en userData (Desktop)
+  - Firestore: perfiles, carpetas, licencias, pagos y trabajos
+  - Realtime Database: archivos en fragmentos de 5 MB
+  - Sistema de archivos local para desarrollo y Desktop
 ```
 
 ---
@@ -87,6 +89,16 @@ Response: {
 Rate limit: 5 req/10min por cliente
 ```
 
+### Mapas e imágenes en segundo plano
+```
+POST /api/generate-infographic
+POST /api/ai/image
+Response: HTTP 202 { "jobId": "uuid", "status": "queued" }
+
+GET /api/ai/jobs/{jobId}
+Response: { "id": "uuid", "status": "queued|processing|completed|failed", "progress": 0-100, "result": {...} }
+```
+
 ### Text-to-Speech
 ```
 POST /api/tts
@@ -135,15 +147,18 @@ pilar-estudiante/
 │   ├── aiService.js        ← Integración Gemini
 │   ├── appConfig.js        ← Configuración central
 │   ├── storageService.js   ← Gestión de archivos
-│   └── transcriptionQueue.js ← Cola de transcripciones
+│   ├── transcriptionQueue.js ← Cola de transcripciones local
+│   ├── firebaseService.js  ← Auth y persistencia remota
+│   └── aiJobQueue.js       ← Cola local para desarrollo/escritorio
 ├── server.js               ← Backend Node.js (500+ líneas)
 ├── main.js                 ← Electron entry point
 ├── sw.js                   ← Service Worker
 ├── package.json
 ├── Dockerfile              ← Para Docker
 ├── docker-compose.yml      ← Orquestación Docker
-├── docker-compose.production.yml ← Despliegue con Caddy y persistencia
-├── Caddyfile               ← HTTPS y streaming sin búfer
+├── render.yaml             ← Web Service Render Free
+├── firestore.rules         ← Bloquea acceso cliente directo
+├── database.rules.json     ← Bloquea acceso cliente directo
 ├── manifest.json           ← PWA manifest
 ├── .env.example            ← Template de env
 ├── .gitignore              ← Ignora claves y builds
@@ -165,8 +180,14 @@ pilar-estudiante/
 | `GEMINI_TRANSCRIPTION_MODEL` | `gemini-flash-latest` | ✅ Sí | Modelo para audio |
 | `NODE_ENV` | `production` | ❌ No | Por defecto: `development` |
 | `PORT` | `3000` | ❌ No | Por defecto: `3000` |
-| `HOST` | `127.0.0.1` | ❌ No | Por defecto: `127.0.0.1` |
+| `HOST` | `127.0.0.1` | ❌ No | Render: `0.0.0.0` |
 | `PILAR_GEMINI_TIMEOUT_MS` | `600000` | ❌ No | De 1000 a 900000 ms; por defecto 10 minutos |
+| `PILAR_PERSISTENCE` | `firebase` | Render | Firebase requerido en Render; local por defecto |
+| `FIREBASE_PROJECT_ID` | — | Render | ID del proyecto Firebase |
+| `FIREBASE_CLIENT_EMAIL` | — | Render | Cuenta de servicio del backend |
+| `FIREBASE_PRIVATE_KEY` | — | Render | Clave privada de servicio, solo servidor |
+| `FIREBASE_DATABASE_URL` | — | Render | URL de Realtime Database |
+| `FIREBASE_WEB_API_KEY` | — | Render | Clave de Identity Toolkit del proyecto |
 
 ### Instalación de Dependencias
 
@@ -208,8 +229,9 @@ docker run -p 3000:3000 -e GEMINI_API_KEY=... pilar
 # Con Docker Compose
 docker compose up -d --build
 
-# Publicación web en VM con HTTPS y persistencia
-docker compose --env-file .env -f docker-compose.production.yml up -d --build
+# Migración desde una exportación anterior de Render
+npm run migrate:render-firebase -- --dry-run
+npm run migrate:render-firebase
 ```
 
 ---
@@ -307,7 +329,7 @@ PORT=3010 npm start
 ## 📞 SOPORTE
 
 - **Documentación:** GUIA-EMPAQUETADO.md, INFORME-TESTING-PILAR.md
-- **Deployment:** GUIA-DESPLIEGUE-OCI.md
+- **Deployment:** GUIA-DESPLIEGUE-RENDER.md
 - **GitHub:** https://github.com/paula27081974/pilar-estudiante
 
 ---
@@ -319,7 +341,7 @@ PORT=3010 npm start
 - [x] Rate limiting activo
 - [x] Manejo de errores completo
 - [x] Fallbacks de IA implementados
-- [x] HTTPS automático mediante Caddy en la configuración de producción
+- [ ] Configurar proyecto Firebase y variables secretas reales antes de desplegar
 - [x] Logo correcto (P de PILAR)
 - [x] Modelo Gemini válido
 - [x] Tests manuales completados

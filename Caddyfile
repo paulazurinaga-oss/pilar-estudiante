@@ -1,6 +1,0 @@
-{$CADDY_DOMAIN} {
-	encode zstd gzip
-	reverse_proxy pilar:3000 {
-		flush_interval -1
-	}
-}

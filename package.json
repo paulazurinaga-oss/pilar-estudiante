@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "serve": "node server.js",
+    "migrate:render-firebase": "node tools/migrate-render-storage-to-firebase.js",
     "desktop": "electron .",
     "test": "node --test",
     "license:init": "node tools/init-license-issuer.js",
@@ -24,6 +25,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "devDependencies": {
     "electron": "^31.7.4",
     "electron-builder": "^24.13.3",
@@ -31,7 +35,13 @@
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "ffmpeg-static": "^5.3.0"
+    "ffmpeg-static": "^5.3.0",
+    "firebase-admin": "^14.5.0"
+  },
+  "overrides": {
+    "firebase-admin": {
+      "rimraf": "^6.1.4"
+    }
   },
   "build": {
     "appId": "com.pilar.delestudiante",
