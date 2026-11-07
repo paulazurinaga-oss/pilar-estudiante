@@ -500,6 +500,7 @@ let authMode = 'register';
 let currentUser = null;
 
 const initialTab = new URLSearchParams(window.location.search).get('tab');
+const AI_RETRY_MESSAGE = 'El asistente está procesando los datos. Por favor, aguarda unos instantes y reintenta.';
 
 function setStatus(message) {
   statusText.textContent = message;
@@ -552,6 +553,7 @@ function buildAiResponse(prompt, context = '') {
 async function requestAiResponse(prompt, context = '', attachments = [], onText) {
   let content = '';
   const output = document.getElementById('aiOutput');
+  setAssistantLoading(true);
   output.textContent = '';
   const appendText = onText || ((text) => { output.textContent += text; });
   try {
@@ -607,14 +609,33 @@ async function requestAiResponse(prompt, context = '', attachments = [], onText)
     if (!completed) throw new Error('La conexión de streaming terminó antes de completar la respuesta.');
     if (!content) throw new Error('El servicio no devolvió contenido.');
     return content;
-  } catch (error) {
-    setStatus(`No se obtuvo respuesta de IA: ${error.message}`);
+  } catch {
+    setStatus(AI_RETRY_MESSAGE);
     const message = content
-      ? `\n\nLa respuesta se interrumpió: ${error.message}`
-      : `No se pudo obtener la respuesta. ${error.message}`;
+      ? `\n\n${AI_RETRY_MESSAGE}`
+      : AI_RETRY_MESSAGE;
     appendText(message);
     return `${content}${message}`;
+  } finally {
+    setAssistantLoading(false);
   }
+}
+
+function setAssistantLoading(isLoading, message = 'Preparando tu respuesta...') {
+  const loading = document.getElementById('aiLoading');
+  loading.classList.toggle('hidden', !isLoading);
+  document.getElementById('aiLoadingMessage').textContent = message;
+  document.getElementById('aiOutput').setAttribute('aria-busy', String(isLoading));
+  document.getElementById('aiSendBtn').disabled = isLoading;
+}
+
+function setInfographicLoading(isLoading, message = 'Preparando tu mapa visual...') {
+  const loading = document.getElementById('infographicLoading');
+  loading.classList.toggle('hidden', !isLoading);
+  document.getElementById('infographicLoadingMessage').textContent = message;
+  generatedImage.setAttribute('aria-busy', String(isLoading));
+  generateImageBtn.disabled = isLoading;
+  generateImageBtn2.disabled = isLoading;
 }
 
 function addSavedText(savedFile, displayName, content) {
@@ -737,12 +758,11 @@ async function transcribeAudioFile(file) {
       updateStats();
     }
     return text;
-  } catch (error) {
-    const message = error.message || 'Error no identificado';
-    setStatus(`Transcripción fallida: ${message}`);
+  } catch {
+    setStatus(AI_RETRY_MESSAGE);
     transcriptionProgressLabel.textContent = 'Error de transcripción';
     transcriptionProgressBar.style.width = '0%';
-    transcriptOutput.value = `No se pudo completar la transcripción del archivo ${file.name}.\n\nDetalle técnico:\n${message}`;
+    transcriptOutput.value = AI_RETRY_MESSAGE;
     return '';
   } finally {
     transcriptionInProgress = false;
@@ -1520,11 +1540,13 @@ async function renderInfographic(mermaidCode) {
 }
 
 async function generateInfographicFromPrompt(prompt) {
+  if (generateImageBtn2.disabled) return;
   if (!prompt.trim()) {
     setStatus('Describe el mapa mental o la infografía que quieres generar.');
     return;
   }
-  generatedImage.textContent = 'Generando estructura visual...';
+  setInfographicLoading(true, 'Generando tu mapa visual...');
+  generatedImage.textContent = '';
   infographicCode.textContent = 'Generando...';
   try {
     const queued = await apiRequest('/generate-infographic', {
@@ -1538,14 +1560,16 @@ async function generateInfographicFromPrompt(prompt) {
     try {
       await renderInfographic(result.mermaid);
       setStatus('Mapa visual generado.');
-    } catch (error) {
-      generatedImage.textContent = `No se pudo dibujar el mapa visual: ${error.message}`;
-      setStatus(`No se pudo dibujar el mapa visual: ${error.message}`);
+    } catch {
+      generatedImage.textContent = AI_RETRY_MESSAGE;
+      setStatus(AI_RETRY_MESSAGE);
     }
-  } catch (error) {
-    generatedImage.textContent = `No se pudo generar el mapa visual: ${error.message}`;
+  } catch {
+    generatedImage.textContent = AI_RETRY_MESSAGE;
     infographicCode.textContent = 'No se generó ninguna estructura.';
-    setStatus(`Generación visual fallida: ${error.message}`);
+    setStatus(AI_RETRY_MESSAGE);
+  } finally {
+    setInfographicLoading(false);
   }
 }
 
@@ -1637,6 +1661,7 @@ aiFileInput.addEventListener('change', async (event) => {
 
 const aiSendBtn = document.getElementById('aiSendBtn');
 aiSendBtn.addEventListener('click', async () => {
+  if (aiSendBtn.disabled) return;
   let prompt = aiPrompt.value.trim();
   const output = document.getElementById('aiOutput');
   if (!prompt) {
@@ -1644,38 +1669,48 @@ aiSendBtn.addEventListener('click', async () => {
     return;
   }
 
+  setAssistantLoading(true, 'Preparando tu solicitud...');
   let attachmentContext = '';
   const attachments = [];
-  if (aiAttachment?.type?.startsWith('audio/')) {
-    output.textContent = `Transcribiendo ${aiAttachment.name} antes de preparar la explicación...`;
-    setStatus(`Procesando el audio adjunto: ${aiAttachment.name}`);
-    const transcript = await transcribeAudioFile(aiAttachment);
-    if (!transcript) {
-      output.textContent = 'No se pudo transcribir el audio. Revisa el estado de Gemini y vuelve a intentarlo.';
-      return;
+  try {
+    if (aiAttachment?.type?.startsWith('audio/')) {
+      setAssistantLoading(true, 'Preparando el audio adjunto...');
+      output.textContent = 'Preparando el audio adjunto...';
+      setStatus('Procesando el audio adjunto.');
+      const transcript = await transcribeAudioFile(aiAttachment);
+      if (!transcript) {
+        output.textContent = AI_RETRY_MESSAGE;
+        return;
+      }
+      attachmentContext = `Transcripción completa del audio ${aiAttachment.name}:\n${transcript}`;
+      prompt = `${prompt}\n\nUsa la transcripción del audio adjunto para responder. No digas que no puedes escuchar el archivo.`;
+    } else if (aiAttachment && (aiAttachment.type === 'application/pdf' || ['image/png', 'image/jpeg', 'image/webp'].includes(aiAttachment.type) || /\.pdf$/i.test(aiAttachment.name))) {
+      setAssistantLoading(true, 'Preparando el documento adjunto...');
+      const bytes = new Uint8Array(await aiAttachment.arrayBuffer());
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      }
+      const mimeType = aiAttachment.type || (aiAttachment.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : '');
+      attachments.push({ mimeType, data: btoa(binary) });
+      attachmentContext = `Analiza el archivo adjunto ${aiAttachment.name} y basa la respuesta en su contenido.`;
+    } else if (aiAttachment) {
+      attachmentContext = `Archivo de texto ${aiAttachment.name} incluido en la solicitud.`;
     }
-    attachmentContext = `Transcripción completa del audio ${aiAttachment.name}:\n${transcript}`;
-    prompt = `${prompt}\n\nUsa la transcripción del audio adjunto para responder. No digas que no puedes escuchar el archivo.`;
-  } else if (aiAttachment && (aiAttachment.type === 'application/pdf' || ['image/png', 'image/jpeg', 'image/webp'].includes(aiAttachment.type) || /\.pdf$/i.test(aiAttachment.name))) {
-    const bytes = new Uint8Array(await aiAttachment.arrayBuffer());
-    let binary = '';
-    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-    }
-    const mimeType = aiAttachment.type || (aiAttachment.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : '');
-    attachments.push({ mimeType, data: btoa(binary) });
-    attachmentContext = `Analiza el archivo adjunto ${aiAttachment.name} y basa la respuesta en su contenido.`;
-  } else if (aiAttachment) {
-    attachmentContext = `Archivo de texto ${aiAttachment.name} incluido en la solicitud.`;
-  }
 
-  output.textContent = '';
-  await requestAiResponse(
-    prompt,
-    `Se está trabajando con un pedido específico del usuario. ${attachmentContext}`,
-    attachments,
-    (text) => { output.textContent += text; },
-  );
+    output.textContent = '';
+    await requestAiResponse(
+      prompt,
+      `Se está trabajando con un pedido específico del usuario. ${attachmentContext}`,
+      attachments,
+      (text) => { output.textContent += text; },
+    );
+  } catch {
+    output.textContent = AI_RETRY_MESSAGE;
+    setStatus(AI_RETRY_MESSAGE);
+  } finally {
+    setAssistantLoading(false);
+  }
 });
 
 const aiCopyBtn = document.getElementById('aiCopyBtn');

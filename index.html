@@ -329,6 +329,10 @@
               <button class="ghost-btn" id="aiSaveBtn">Guardar</button>
               <button class="ghost-btn" id="aiDeleteBtn">Eliminar</button>
             </div>
+            <div class="ai-loading hidden" id="aiLoading" role="status" aria-live="polite">
+              <span class="loading-spinner" aria-hidden="true"></span>
+              <span id="aiLoadingMessage">Preparando tu respuesta...</span>
+            </div>
             <div class="ai-output" id="aiOutput">
               El asistente responderá con un resumen, explicación o esquema personalizado para tu contenido.
             </div>
@@ -351,6 +355,10 @@
               <button class="ghost-btn" id="infographicExportBtn">Exportar archivo</button>
               <button class="ghost-btn" id="infographicSendAiBtn">Enviar a Asistente</button>
               <button class="ghost-btn" id="infographicSendStudyBtn">Enviar a Cuaderno</button>
+            </div>
+            <div class="ai-loading hidden" id="infographicLoading" role="status" aria-live="polite">
+              <span class="loading-spinner" aria-hidden="true"></span>
+              <span id="infographicLoadingMessage">Preparando tu mapa visual...</span>
             </div>
             <div class="generated-image infographic-preview" id="generatedImage" aria-live="polite">
               El diagrama visual aparecerá aquí.

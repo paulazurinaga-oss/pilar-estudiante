@@ -36,13 +36,20 @@ before(async () => {
   const port = await reservePort();
   baseUrl = `http://127.0.0.1:${port}`;
   const mockGemini = `
-    global.fetch = async (url) => {
+    global.fetch = async (url, options) => {
       if (String(url).includes(':generateContent?key=')) {
         return new Response(JSON.stringify({
           candidates: [{ content: { parts: [{ text: 'flowchart TD\\n  A[Inicio] --> B[Concepto]' }] } }],
         }), { headers: { 'content-type': 'application/json' } });
       }
       if (!String(url).includes(':streamGenerateContent?alt=sse')) throw new Error('Fetch inesperado');
+      const request = JSON.parse(options.body);
+      if (request.contents[0].parts[0].text.includes('simular fallo')) {
+        return new Response('{"error":{"code":503,"status":"UNAVAILABLE","message":"backend diagnostic"}}', {
+          status: 503,
+          headers: { 'content-type': 'application/json', 'retry-after': '0' },
+        });
+      }
       const parts = [
         { candidates: [{ content: { parts: [{ text: 'Respuesta' }] } }] },
         { candidates: [{ content: { parts: [{ text: ' en streaming.' }] } }] },
@@ -94,7 +101,12 @@ test('allows the Mermaid script required to render infographic diagrams', async 
   const response = await fetch(`${baseUrl}/`);
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-security-policy'), /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
-  assert.match(await response.text(), /https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@11\/dist\/mermaid\.min\.js/);
+  const html = await response.text();
+  assert.match(html, /https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@11\/dist\/mermaid\.min\.js/);
+  assert.match(html, /id="aiLoading"[^>]*role="status"/);
+  assert.match(html, /id="infographicLoading"[^>]*role="status"/);
+  const styles = await fetch(`${baseUrl}/css/styles.css`).then((result) => result.text());
+  assert.match(styles, /@keyframes ai-loading-spin/);
 });
 
 test('streams chat deltas from the authenticated endpoint as server-sent events', async () => {
@@ -113,6 +125,18 @@ test('streams chat deltas from the authenticated endpoint as server-sent events'
   assert.match(streamText, /"text":"Respuesta"/);
   assert.match(streamText, /"text":" en streaming\."/);
   assert.match(streamText, /"fallback":false/);
+});
+
+test('shows a friendly message instead of Gemini diagnostics after a persistent chat outage', async () => {
+  const response = await fetch(`${baseUrl}/api/ai/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, accept: 'text/event-stream' },
+    body: JSON.stringify({ prompt: 'simular fallo' }),
+  });
+  const streamText = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(streamText, /El asistente está procesando los datos\. Por favor, aguarda unos instantes y reintenta\./);
+  assert.doesNotMatch(streamText, /503|UNAVAILABLE|backend diagnostic|Gemini request failed/);
 });
 
 test('queues infographic generation and returns its result through the job status route', async () => {

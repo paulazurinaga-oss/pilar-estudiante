@@ -42,7 +42,9 @@ test('reports persistent 503 without fabricating an assistant answer', async () 
   const result = await generateAssistantReply('Explícame el material');
   assert.equal(attempts, 4);
   assert.equal(result.fallback, true);
-  assert.match(result.content, /temporalmente no disponible/i);
+  assert.equal(result.content, 'El asistente está procesando los datos. Por favor, aguarda unos instantes y reintenta.');
+  assert.equal(result.error, undefined);
+  assert.doesNotMatch(result.content, /503|UNAVAILABLE|Error|Gemini request failed/i);
   assert.doesNotMatch(result.content, /Respuesta específica para/i);
 });
 

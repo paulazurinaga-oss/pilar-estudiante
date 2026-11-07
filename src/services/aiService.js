@@ -300,10 +300,9 @@ function buildAssistantParts(prompt, context, attachments) {
 function assistantFailure(error) {
   const errorDetail = error?.message || 'Error desconocido';
   const quotaExceeded = isQuotaError(error);
-  const userMessage = quotaExceeded
-    ? 'Límite de cuota gratuita de Gemini alcanzado. Por favor, aguarda unos minutos.'
-    : `No se obtuvo una respuesta de IA. Gemini puede estar temporalmente no disponible; revisa el modelo y vuelve a intentarlo. Detalle: ${errorDetail}`;
-  return { content: userMessage, fallback: true, error: errorDetail, userMessage, quotaExceeded };
+  console.error(`[PILAR][ai-chat] ${errorDetail}`);
+  const userMessage = 'El asistente está procesando los datos. Por favor, aguarda unos instantes y reintenta.';
+  return { content: userMessage, fallback: true, userMessage, quotaExceeded };
 }
 
 async function generateAssistantReply(prompt, context = '', attachments = []) {
