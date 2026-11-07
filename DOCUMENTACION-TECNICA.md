@@ -144,7 +144,7 @@ pilar-estudiante/
 ├── css/
 │   └── styles.css          ← Estilos responsive
 ├── src/services/
-│   ├── aiService.js        ← Integración Gemini
+│   ├── aiService.js        ← Integración Gemini con hasta 3 reintentos exponenciales ante errores temporales
 │   ├── appConfig.js        ← Configuración central
 │   ├── storageService.js   ← Gestión de archivos
 │   ├── transcriptionQueue.js ← Cola de transcripciones local

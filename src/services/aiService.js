@@ -2,6 +2,8 @@ const { apiConfig } = require('./appConfig');
 
 const DEFAULT_GEMINI_REQUEST_TIMEOUT_MS = 10 * 60_000;
 const MAX_GEMINI_REQUEST_TIMEOUT_MS = 15 * 60_000;
+const MAX_GEMINI_RETRIES = 3;
+const RETRYABLE_GEMINI_STATUSES = new Set([429, 500, 502, 503, 504]);
 const configuredGeminiTimeout = process.env.PILAR_GEMINI_TIMEOUT_MS;
 const GEMINI_REQUEST_TIMEOUT_MS = configuredGeminiTimeout === undefined || configuredGeminiTimeout.trim() === ''
   ? DEFAULT_GEMINI_REQUEST_TIMEOUT_MS
@@ -14,7 +16,7 @@ if (!Number.isSafeInteger(GEMINI_REQUEST_TIMEOUT_MS)
 }
 
 function retryDelayMs(response, attempt) {
-  const retryAfter = response.headers.get('retry-after');
+  const retryAfter = response?.headers?.get('retry-after');
   if (retryAfter) {
     const seconds = Number(retryAfter);
     const retryAt = Number.isFinite(seconds) ? Date.now() + seconds * 1000 : Date.parse(retryAfter);
@@ -22,6 +24,13 @@ function retryDelayMs(response, attempt) {
   }
 
   return Math.min(1000 * (2 ** attempt), 8000);
+}
+
+function isRetryableGeminiError(error) {
+  const status = error?.status ?? error?.code;
+  return RETRYABLE_GEMINI_STATUSES.has(Number(status))
+    || String(status || '').toUpperCase() === 'UNAVAILABLE'
+    || /\bUNAVAILABLE\b/i.test(error?.message || '');
 }
 
 function waitForRetry(delayMs, signal) {
@@ -50,13 +59,12 @@ async function geminiRequest({ model, parts, signal, generationConfig }) {
   }
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiConfig.gemini.apiKey)}`;
-  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
   const requestSignal = signal
     ? AbortSignal.any([signal, AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS)])
     : AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS);
   let lastError;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt <= MAX_GEMINI_RETRIES; attempt += 1) {
     let response;
     try {
       response = await fetch(endpoint, {
@@ -69,24 +77,33 @@ async function geminiRequest({ model, parts, signal, generationConfig }) {
         }),
       });
     } catch (error) {
-      if (requestSignal.aborted || attempt === 2) throw error;
+      if (requestSignal.aborted || attempt === MAX_GEMINI_RETRIES) throw error;
       lastError = error;
       await waitForRetry(Math.min(1000 * (2 ** attempt), 8000), requestSignal);
       continue;
     }
 
     if (response.ok) {
-      return response.json();
+      const data = await response.json();
+      if (!data?.error) return data;
+      lastError = new Error(data.error.message || 'Gemini devolvió un error.');
+      lastError.status = data.error.status || data.error.code;
+      lastError.code = data.error.code;
+      if (!isRetryableGeminiError(lastError) || attempt === MAX_GEMINI_RETRIES) {
+        throw lastError;
+      }
+      await waitForRetry(retryDelayMs(response, attempt), requestSignal);
+      continue;
     }
 
     const errText = await response.text();
     lastError = new Error(`Gemini request failed: ${response.status} ${errText}`);
     lastError.status = response.status;
-    if (!retryableStatuses.has(response.status) || attempt === 2) {
+    if (!isRetryableGeminiError(lastError) || attempt === MAX_GEMINI_RETRIES) {
       throw lastError;
     }
 
-    await waitForRetry(retryDelayMs(response, attempt), signal);
+    await waitForRetry(retryDelayMs(response, attempt), requestSignal);
   }
 
   throw lastError || new Error('Gemini no respondió.');
@@ -101,9 +118,9 @@ async function geminiStreamRequest({ model, parts, signal, onText }) {
   const requestSignal = signal
     ? AbortSignal.any([signal, AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS)])
     : AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS);
-  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
-  let response;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_GEMINI_RETRIES; attempt += 1) {
+    let response;
     try {
       response = await fetch(endpoint, {
         method: 'POST',
@@ -112,69 +129,76 @@ async function geminiStreamRequest({ model, parts, signal, onText }) {
         body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
       });
     } catch (error) {
-      if (requestSignal.aborted || attempt === 2) throw error;
+      if (requestSignal.aborted || attempt === MAX_GEMINI_RETRIES) throw error;
       await waitForRetry(Math.min(1000 * (2 ** attempt), 8000), requestSignal);
       continue;
     }
 
-    if (response.ok) break;
-    const errorText = await response.text();
-    const error = new Error(`Gemini request failed: ${response.status} ${errorText}`);
-    error.status = response.status;
-    if (!retryableStatuses.has(response.status) || attempt === 2) throw error;
-    await waitForRetry(retryDelayMs(response, attempt), requestSignal);
-  }
-
-  if (!response?.ok) throw new Error('Gemini no respondió.');
-  if (!response.body) throw new Error('Gemini devolvió una respuesta de streaming vacía.');
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let pending = '';
-  let content = '';
-
-  async function processEvent(eventText) {
-    const data = eventText.split(/\r?\n/)
-      .filter((line) => line.startsWith('data:'))
-      .map((line) => line.slice(5).trimStart())
-      .join('\n');
-    if (!data || data === '[DONE]') return;
-
-    const chunk = JSON.parse(data);
-    if (chunk.error) {
-      const error = new Error(chunk.error.message || 'Gemini devolvió un error de streaming.');
-      error.status = chunk.error.code;
-      throw error;
+    if (!response.ok) {
+      const errorText = await response.text();
+      lastError = new Error(`Gemini request failed: ${response.status} ${errorText}`);
+      lastError.status = response.status;
+      if (!isRetryableGeminiError(lastError) || attempt === MAX_GEMINI_RETRIES) throw lastError;
+      await waitForRetry(retryDelayMs(response, attempt), requestSignal);
+      continue;
     }
 
-    const text = chunk?.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || '')
-      .join('');
-    if (text) {
-      content += text;
-      await onText(text);
+    if (!response.body) throw new Error('Gemini devolvió una respuesta de streaming vacía.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+    let content = '';
+
+    async function processEvent(eventText) {
+      const data = eventText.split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n');
+      if (!data || data === '[DONE]') return;
+
+      const chunk = JSON.parse(data);
+      if (chunk.error) {
+        const error = new Error(chunk.error.message || 'Gemini devolvió un error de streaming.');
+        error.status = chunk.error.status || chunk.error.code;
+        error.code = chunk.error.code;
+        throw error;
+      }
+
+      const text = chunk?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text || '')
+        .join('');
+      if (text) {
+        content += text;
+        await onText(text);
+      }
     }
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        pending += decoder.decode(value, { stream: !done });
+        const events = pending.split(/\r?\n\r?\n/);
+        pending = events.pop() || '';
+        for (const eventText of events) await processEvent(eventText);
+        if (done) break;
+      }
+      if (pending.trim()) await processEvent(pending);
+    } catch (error) {
+      await reader.cancel(error).catch(() => {});
+      if (content || !isRetryableGeminiError(error) || attempt === MAX_GEMINI_RETRIES) throw error;
+      lastError = error;
+      await waitForRetry(retryDelayMs(null, attempt), requestSignal);
+      continue;
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (!content.trim()) throw new Error('Gemini no devolvió contenido.');
+    return content;
   }
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      pending += decoder.decode(value, { stream: !done });
-      const events = pending.split(/\r?\n\r?\n/);
-      pending = events.pop() || '';
-      for (const eventText of events) await processEvent(eventText);
-      if (done) break;
-    }
-    if (pending.trim()) await processEvent(pending);
-  } catch (error) {
-    await reader.cancel(error).catch(() => {});
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
-
-  if (!content.trim()) throw new Error('Gemini no devolvió contenido.');
-  return content;
+  throw lastError || new Error('Gemini no respondió.');
 }
 
 function extractGeminiText(data) {

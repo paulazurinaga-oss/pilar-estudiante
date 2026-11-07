@@ -29,9 +29,9 @@ function overloaded() {
 
 test('retries a temporary transcription outage and recovers', async () => {
   let attempts = 0;
-  global.fetch = async () => (++attempts < 3 ? overloaded() : geminiSuccess('Transcripción válida'));
+  global.fetch = async () => (++attempts < 4 ? overloaded() : geminiSuccess('Transcripción válida'));
   const result = await transcribeAudio({ fileName: 'audio.wav', buffer: Buffer.from('audio de prueba'), mimeType: 'audio/wav' });
-  assert.equal(attempts, 3);
+  assert.equal(attempts, 4);
   assert.equal(result.fallback, false);
   assert.equal(result.text, 'Transcripción válida');
 });
@@ -40,10 +40,34 @@ test('reports persistent 503 without fabricating an assistant answer', async () 
   let attempts = 0;
   global.fetch = async () => { attempts += 1; return overloaded(); };
   const result = await generateAssistantReply('Explícame el material');
-  assert.equal(attempts, 3);
+  assert.equal(attempts, 4);
   assert.equal(result.fallback, true);
   assert.match(result.content, /temporalmente no disponible/i);
   assert.doesNotMatch(result.content, /Respuesta específica para/i);
+});
+
+test('uses exponential backoff for three retries after a 503', async () => {
+  const originalSetTimeout = global.setTimeout;
+  const delays = [];
+  let attempts = 0;
+  global.setTimeout = (callback, delay, ...args) => {
+    delays.push(delay);
+    queueMicrotask(() => callback(...args));
+    return 0;
+  };
+  global.fetch = async () => {
+    attempts += 1;
+    return attempts < 4 ? new Response('UNAVAILABLE', { status: 503 }) : geminiSuccess('Recuperado');
+  };
+
+  try {
+    const result = await generateAssistantReply('Reintenta con backoff');
+    assert.equal(result.content, 'Recuperado');
+    assert.equal(attempts, 4);
+    assert.deepEqual(delays, [1000, 2000, 4000]);
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
 });
 
 test('retries temporary network errors instead of failing on the first disconnect', async () => {
@@ -112,6 +136,28 @@ test('retries a transient Gemini error before opening the text stream', async ()
   assert.equal(result.fallback, false);
 });
 
+test('retries an UNAVAILABLE error in a stream event before sending text', async () => {
+  const chunk = { candidates: [{ content: { parts: [{ text: 'Recuperado.' }] } }] };
+  let attempts = 0;
+  global.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return new Response('data: {"error":{"code":503,"status":"UNAVAILABLE"}}\n\n', {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    }
+    return new Response(`data: ${JSON.stringify(chunk)}\n\n`, {
+      headers: { 'content-type': 'text/event-stream' },
+    });
+  };
+  const received = [];
+  const result = await generateAssistantReplyStream('Reintenta el evento', '', [], async (text) => received.push(text));
+  assert.equal(attempts, 2);
+  assert.deepEqual(received, ['Recuperado.']);
+  assert.equal(result.content, 'Recuperado.');
+  assert.equal(result.fallback, false);
+});
+
 test('returns generated image bytes from Gemini', async () => {
   let requestBody;
   global.fetch = async (_url, options) => {
@@ -137,6 +183,19 @@ test('generates a validated Mermaid infographic with the text model', async () =
   assert.match(result.mermaid, /^flowchart TD/);
   assert.equal(requestBody.generationConfig, undefined);
   assert.match(requestBody.contents[0].parts[0].text, /único diagrama Mermaid/i);
+});
+
+test('retries infographic generation after a Gemini 503', async () => {
+  let attempts = 0;
+  global.fetch = async () => {
+    attempts += 1;
+    return attempts === 1
+      ? overloaded()
+      : geminiSuccess('flowchart TD\n  A[Inicio] --> B[Concepto]');
+  };
+  const result = await generateInfographic('Mapa conceptual de biología');
+  assert.equal(attempts, 2);
+  assert.match(result.mermaid, /^flowchart TD/);
 });
 
 test('rejects non-Mermaid infographic responses', async () => {
