@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const { test } = require('node:test');
+const { useFirebasePersistence } = require('../src/services/persistenceConfig');
 
 const projectRoot = path.join(__dirname, '..');
 
@@ -20,6 +21,19 @@ test('refuses to start on Render if Firebase persistence is not selected', () =>
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Render requiere PILAR_PERSISTENCE=firebase/);
+});
+
+test('selects Firebase on Render when persistence is unset and service-account credentials exist', () => {
+  assert.equal(useFirebasePersistence({
+    RENDER_SERVICE_ID: 'test-render-service',
+    FIREBASE_SERVICE_ACCOUNT_JSON: '{"type":"service_account"}',
+  }), true);
+});
+
+test('does not silently select local persistence on Render without Firebase credentials', () => {
+  assert.throws(() => useFirebasePersistence({
+    RENDER_SERVICE_ID: 'test-render-service',
+  }), /Render requiere PILAR_PERSISTENCE=firebase o credenciales de Firebase configuradas/);
 });
 
 test('fails fast instead of silently falling back when Firebase credentials are missing', () => {

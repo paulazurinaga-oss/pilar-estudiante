@@ -9,12 +9,10 @@ const localStorage = require('./src/services/storageService');
 const localTranscription = require('./src/services/transcriptionQueue');
 const localAiJobs = require('./src/services/aiJobQueue');
 const { generateAssistantReplyStream } = require('./src/services/aiService');
+const { useFirebasePersistence: selectFirebasePersistence } = require('./src/services/persistenceConfig');
 
-const useFirebasePersistence = process.env.PILAR_PERSISTENCE === 'firebase';
+const useFirebasePersistence = selectFirebasePersistence();
 const firebaseService = useFirebasePersistence ? require('./src/services/firebaseService') : null;
-if (process.env.RENDER_SERVICE_ID && !useFirebasePersistence) {
-  throw new Error('Render requiere PILAR_PERSISTENCE=firebase; el almacenamiento local no es persistente.');
-}
 if (useFirebasePersistence) firebaseService.assertConfigured();
 
 const persistence = useFirebasePersistence ? firebaseService : {
