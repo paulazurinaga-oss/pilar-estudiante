@@ -1510,19 +1510,13 @@ let latestInfographic = null;
 async function renderInfographic(mermaidCode) {
   generatedImage.replaceChildren();
   if (!window.mermaid) {
-    generatedImage.textContent = mermaidCode;
-    return;
+    throw new Error('No se pudo cargar Mermaid. Comprueba tu conexión e inténtalo de nuevo.');
   }
   window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' });
-  try {
-    const renderId = `pilar-infographic-${Date.now()}`;
-    const result = await window.mermaid.render(renderId, mermaidCode);
-    generatedImage.innerHTML = result.svg;
-    result.bindFunctions?.(generatedImage);
-  } catch (error) {
-    generatedImage.textContent = mermaidCode;
-    setStatus(`No se pudo dibujar el gráfico; se muestra la estructura. ${error.message}`);
-  }
+  const renderId = `pilar-infographic-${Date.now()}`;
+  const result = await window.mermaid.render(renderId, mermaidCode);
+  generatedImage.innerHTML = result.svg;
+  result.bindFunctions?.(generatedImage);
 }
 
 async function generateInfographicFromPrompt(prompt) {
@@ -1541,8 +1535,13 @@ async function generateInfographicFromPrompt(prompt) {
     if (!result?.mermaid) throw new Error('Gemini no devolvió una estructura visual válida.');
     latestInfographic = { prompt: prompt.trim(), mermaid: result.mermaid, title: result.title || 'Infografía PILAR' };
     infographicCode.textContent = result.mermaid;
-    await renderInfographic(result.mermaid);
-    setStatus('Mapa visual generado.');
+    try {
+      await renderInfographic(result.mermaid);
+      setStatus('Mapa visual generado.');
+    } catch (error) {
+      generatedImage.textContent = `No se pudo dibujar el mapa visual: ${error.message}`;
+      setStatus(`No se pudo dibujar el mapa visual: ${error.message}`);
+    }
   } catch (error) {
     generatedImage.textContent = `No se pudo generar el mapa visual: ${error.message}`;
     infographicCode.textContent = 'No se generó ninguna estructura.';

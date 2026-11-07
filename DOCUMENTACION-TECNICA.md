@@ -140,7 +140,7 @@ DELETE /api/storage/files/{name}
 ```
 pilar-estudiante/
 ├── index.html              ← PWA principal
-├── script.js               ← Lógica frontend (1200+ líneas)
+├── script.js               ← Lógica frontend y renderizado de diagramas Mermaid
 ├── css/
 │   └── styles.css          ← Estilos responsive
 ├── src/services/
@@ -150,7 +150,7 @@ pilar-estudiante/
 │   ├── transcriptionQueue.js ← Cola de transcripciones local
 │   ├── firebaseService.js  ← Auth y persistencia remota
 │   └── aiJobQueue.js       ← Cola local para desarrollo/escritorio
-├── server.js               ← Backend Node.js (500+ líneas)
+├── server.js               ← Backend Node.js y CSP que permite cargar Mermaid desde jsDelivr
 ├── main.js                 ← Electron entry point
 ├── sw.js                   ← Service Worker
 ├── package.json

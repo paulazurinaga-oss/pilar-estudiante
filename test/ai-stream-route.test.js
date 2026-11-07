@@ -90,6 +90,13 @@ after(async () => {
   if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
+test('allows the Mermaid script required to render infographic diagrams', async () => {
+  const response = await fetch(`${baseUrl}/`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-security-policy'), /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(await response.text(), /https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@11\/dist\/mermaid\.min\.js/);
+});
+
 test('streams chat deltas from the authenticated endpoint as server-sent events', async () => {
   const response = await fetch(`${baseUrl}/api/ai/chat`, {
     method: 'POST',
