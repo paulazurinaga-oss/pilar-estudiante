@@ -13,7 +13,7 @@ Render ejecuta el servidor web; Firebase Authentication, Firestore y Realtime Da
 ## 1. Crear y configurar Firebase
 
 1. Crea un proyecto Firebase y habilita **Authentication > Email/Password**, Cloud Firestore y Realtime Database.
-2. Crea una cuenta de servicio del servidor con los permisos mínimos necesarios para Authentication, Firestore y Realtime Database. Copia el ID del proyecto, el correo de la cuenta de servicio y la clave privada; guarda la clave fuera del repositorio.
+2. Crea una cuenta de servicio del servidor con los permisos mínimos necesarios para Authentication, Firestore y Realtime Database. Guarda su archivo JSON fuera del repositorio.
 3. Obtén la Web API Key del proyecto desde la configuración de Firebase. El servidor la usa para intercambiar credenciales de Email/Password; no se envía al navegador.
 4. Aplica las reglas configuradas en [firebase.json](./firebase.json), [firestore.rules](./firestore.rules) y [database.rules.json](./database.rules.json). El acceso cliente queda denegado: la app opera mediante el servidor autenticado con Firebase Admin.
 
@@ -37,7 +37,7 @@ Si una cuenta se autentica en Firebase con un ID distinto al ID legado, la migra
 
 1. Conecta el repositorio a Render y crea un **Web Service** con `render.yaml` o usa **New > Blueprint**.
 2. Mantén el plan `Free`; no configures disco persistente ni habilites servicios de pago.
-3. En **Environment**, completa los valores marcados `sync: false`: credenciales Firebase, `GEMINI_API_KEY`, URL pública y códigos de invitación/licencia. Para `FIREBASE_PRIVATE_KEY`, pega la clave del servicio con saltos de línea, o conserva los `\n` escapados.
+3. En **Environment**, completa los valores marcados `sync: false`: credenciales Firebase, `GEMINI_API_KEY`, URL pública y códigos de invitación/licencia. Para la cuenta de servicio puedes configurar `FIREBASE_SERVICE_ACCOUNT_JSON` con el contenido JSON completo; alternativamente, configura `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` y `FIREBASE_PRIVATE_KEY`. También son obligatorias `FIREBASE_DATABASE_URL` y `FIREBASE_WEB_API_KEY`. Nunca pegues la credencial en el código, en un commit ni en un mensaje.
 4. Deja `PILAR_OPEN_REGISTRATION=false` y configura códigos de invitación individuales antes de habilitar registros. No compartas los secretos en logs o commits.
 5. Despliega y comprueba `https://<tu-servicio>.onrender.com/api/health`. Después prueba registro, inicio/cierre de sesión, almacenamiento, eliminación de cuenta, compra (si está configurada), mapa visual y transcripción.
 

@@ -20,38 +20,68 @@ const activeJobs = new Map();
 let workerStarted = false;
 
 function isConfigured() {
-  return Boolean(
-    process.env.FIREBASE_PROJECT_ID
-    && process.env.FIREBASE_CLIENT_EMAIL
-    && process.env.FIREBASE_PRIVATE_KEY
-    && process.env.FIREBASE_DATABASE_URL
-    && process.env.FIREBASE_WEB_API_KEY,
-  );
-}
-
-function assertConfigured() {
-  const missing = [
-    'FIREBASE_PROJECT_ID',
-    'FIREBASE_CLIENT_EMAIL',
-    'FIREBASE_PRIVATE_KEY',
-    'FIREBASE_DATABASE_URL',
-    'FIREBASE_WEB_API_KEY',
-  ].filter((key) => !process.env[key]);
-  if (missing.length) {
-    throw new Error(`Faltan variables obligatorias de Firebase: ${missing.join(', ')}.`);
+  try {
+    firebaseConfiguration();
+    return true;
+  } catch {
+    return false;
   }
 }
 
+function firebaseConfiguration() {
+  let serviceAccount;
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON.trim();
+    const json = raw.length >= 2 && (
+      (raw.startsWith("'") && raw.endsWith("'"))
+      || (raw.startsWith('"') && raw.endsWith('"'))
+    ) ? raw.slice(1, -1) : raw;
+    try {
+      serviceAccount = JSON.parse(json);
+    } catch {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON debe contener una credencial JSON válida.');
+    }
+    if (!serviceAccount || typeof serviceAccount !== 'object' || Array.isArray(serviceAccount)) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON debe contener un objeto de credenciales.');
+    }
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccount?.project_id || serviceAccount?.projectId;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || serviceAccount?.client_email || serviceAccount?.clientEmail;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY || serviceAccount?.private_key || serviceAccount?.privateKey;
+  if (process.env.FIREBASE_PROJECT_ID && serviceAccount?.project_id
+    && process.env.FIREBASE_PROJECT_ID !== serviceAccount.project_id) {
+    throw new Error('FIREBASE_PROJECT_ID no coincide con el proyecto de FIREBASE_SERVICE_ACCOUNT_JSON.');
+  }
+
+  const missing = [];
+  if (!projectId) missing.push(serviceAccount ? 'project_id en FIREBASE_SERVICE_ACCOUNT_JSON' : 'FIREBASE_PROJECT_ID');
+  if (!clientEmail) missing.push(serviceAccount ? 'client_email en FIREBASE_SERVICE_ACCOUNT_JSON' : 'FIREBASE_CLIENT_EMAIL');
+  if (!privateKey) missing.push(serviceAccount ? 'private_key en FIREBASE_SERVICE_ACCOUNT_JSON' : 'FIREBASE_PRIVATE_KEY');
+  if (!process.env.FIREBASE_DATABASE_URL) missing.push('FIREBASE_DATABASE_URL');
+  if (!process.env.FIREBASE_WEB_API_KEY) missing.push('FIREBASE_WEB_API_KEY');
+  if (missing.length) throw new Error(`Faltan variables obligatorias de Firebase: ${missing.join(', ')}.`);
+
+  return {
+    serviceAccount: {
+      projectId,
+      clientEmail,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+    },
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+  };
+}
+
+function assertConfigured() {
+  firebaseConfiguration();
+}
+
 function firebase() {
-  assertConfigured();
+  const configuration = firebaseConfiguration();
   const app = getApps().find((entry) => entry.name === 'pilar')
     || initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      }),
-      databaseURL: process.env.FIREBASE_DATABASE_URL,
+      credential: cert(configuration.serviceAccount),
+      databaseURL: configuration.databaseURL,
     }, 'pilar');
   return {
     auth: getAuth(app),
